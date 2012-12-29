@@ -3,8 +3,8 @@
 # =============================== SUMMARY =====================================
 #
 # Program : check_netint.pl or check_snmp_netint.pl
-# Version : 2.4 alpha 9
-# Date    : Nov 30, 2012
+# Version : 2.4 beta 1
+# Date    : Dec 30, 2012
 # Maintainer: William Leibzon - william@leibzon.org,
 # Authors : See "CONTRIBUTORS" documentation section
 # Licence : GPL - summary below, full text at http://www.fsf.org/licenses/gpl.txt
@@ -162,10 +162,12 @@
 #     the script will output the actual value so you can add some octets to it
 #     with the -o option.
 #
-# --label option
+# --label_intstatus | --label
 #     This option will put label before performance data value: 
 #        Without : eth1:UP (10.3Kbps/4.4Kbps), eth0:UP (10.9Kbps/16.4Kbps):2 UP: OK
 #        With : eth1:UP (in=14.4Kbps/out=6.2Kbps), eth0:UP (in=15.3Kbps/out=22.9Kbps):2 UP: OK
+#     Note that old option name '--label' is being depreciated (and will be re-assined to
+#     different option later), you should start using '--label_intstatus' instead.
 #
 # Note: Do not rely on this option meaning same thing in the future, it may be
 #       changed to specify label to put prior to plugin output with this
@@ -346,7 +348,7 @@
 #      command_line $USER1$/check_snmp_netint.pl -2 -f -C $USER5$
 # -H $HOSTADDRESS$ --cisco=oper,show_portnames --stp -n $ARG1$ -w $ARG2$
 # -c $ARG3$ -d $USER8$ -e -q -k -y -M -B -mm -P "$SERVICEPERFDATA$"
-# -T "$LASTSERVICECHECK$" --label
+# -T "$LASTSERVICECHECK$" --label_intstatus
 #   }
 #   define service{
 #       use                             std-switch-service
@@ -564,6 +566,8 @@
 #                    for linux local checks into its own function).
 # 2.4a9 - 11/30/12 - prev_perf() function added in place of directly accessing prev_perf hash
 #		     message size is reset to 5 times the default with --bulk_snmp_queries
+# 2.4b1 - 12/24/12 - bulk_snmp option extended with several settings and its made default
+#                    when -m/-mm are used and there are > 30 OIDs to be queried
 #
 # ============================ LIST OF CONTRIBUTORS ===============================
 #
@@ -667,7 +671,7 @@ my $o_verb=		undef;	# verbose mode/debug file name
 my $o_version=		undef;	# print version
 my $o_noreg=		undef;	# Do not use Regexp for name
 my $o_short=		undef;	# set maximum of n chars to be displayed
-my $o_label=		undef;	# add label before speed (in, out, etc...).
+my $o_islabel=		undef;	# add label before speed (in, out, etc...).
 my $o_admindown_ok=	undef;  # admin down is ok (usefull when checking operational status)
 
 # Speed/error checks
@@ -687,14 +691,6 @@ my $o_prct=             undef;  # output in % of max speed  (-u)
 my $o_kbits=	        undef;	# Warn and critical in Kbits instead of KBytes
 my $o_zerothresholds=	undef;  # If warn/crit are not specified, assume its 0
 
-# Average Traffic Calculation Options (new option for upcoming 2.4 beta)
-my $o_timeavg_opt=	undef;  # New option that allows to keep track of average traffic
-				# (50 percentile) over longer period and to set
-				# threshold based on deviation from this average
-my $o_atime_nchecks_opt= undef;	# Minimum number of samples for threshold to take affect
-				# (2 numbers: one fo take affect in addition to regular
-			        #  threshold, 2nd number is to take
-
 # Performance data options
 my $o_perf=             undef;  # Output performance data
 my $o_perfe=            undef;  # Output discard/error also in perf data
@@ -702,6 +698,9 @@ my $o_perfp=            undef;  # output performance data in % of max speed (-y)
 my $o_perfr=            undef;  # output performance data in bits/s or Bytes/s (-Y)
 my $o_perfo=            undef;  # output performance data in octets (-Z)
 my $o_intspeed=         undef;  # include speed in performance output (-S), specify speed
+my $o_traffavg=		undef;  # New v2.4 option that allows to keep track of average
+				# traffic (50 percentile) over longer period and to set
+				# threshold based on deviation from this average
 
 # WL: These are for previous performance data that nagios can send data to the plugin
 # with $SERVICEPERFDATA$ macro (and $SERVICESAVEDDATA$ for future naios versions).
@@ -809,10 +808,10 @@ sub write_file {
   }
 }
 
-sub p_version { print "check_snmp_netint version : $Version\n"; }
+sub p_version { print "check_netint version : $Version\n"; }
 
 sub print_usage {
-    print "Usage: $0 [-v [debugfilename]] -H <host> (-C <snmp_community> [-2]) | (-l login -x passwd [-X pass -L <authp>,<privp>)  [-p <port>] [-N <desc table oid>] -n <name in desc_oid> [-O <comments table OID>] [-I] [-i | -a | -D | -K] [-r] [-f[eSyYZ] [-P <previous perf data from nagios \$SERVICEPERFDATA\$>] [-T <previous time from nagios \$LASTSERVICECHECK\$>] [--pcount=<hist size in perf>]] [-k[qBMGu] [-S [intspeed]] -g [-w<warn levels> -c<crit levels> [-z]| -z] -d<delta>] [-o <octet_length>] [-m|-mm] [-t <timeout>] [-s] [--label] [--cisco=[oper,][addoper,][linkfault,][use_portnames|show_portnames]] [--stp[=<expected stp state>]] [-V]\n";
+    print "Usage: $0 [-V] | [-v [<debugfilename>]] [-t <timeout>] [-I | [-a] [-K] [-i] [-D]] [-n <name in desc_oid> [-r] [-s] [--label_intstatus]] [-f[eyYZ]] [-k[qBMGu] [-S [<intspeed>]] [-w <warn levels> -c <crit levels> [-z] | -z] [-A <navg,minsamples>]  [-F <filename> | -P <previous perf data from nagios \$SERVICEPERFDATA\$>] -T <previous time from nagios \$LASTSERVICECHECK\$>] [--pcount=<hist size in perf>] [-d <delta>] [-H <host> (-C <snmp_community> [-2]) | (-l login -x passwd [-X pass -L <authp>,<privp>)  [-p <port>] [-N <desc table oid>] [-O <comments table OID>] [-o <octet_length>] [--64bits] [-m|-mm] [--cisco=[oper,][addoper,][linkfault,][use_portnames|show_portnames]] [--stp[=<expected stp state>]] [--bulk_snmp_queries=<optimize|std|on|off>]]\n";
 }
 
 sub isnnum { # Return true if arg is not a number
@@ -855,7 +854,7 @@ Interface Selection and Status Output options:
    Return status CRITICAL when UP instead
 -a, --admin
    Use administrative status instead of default operational
--D, --dormant
+-D, --dormant_ok | --dormant (just --dormant will be deprectiated)
    Dormant state is an OK state (mainly for ISDN interfaces)
 -I, --ignorestatus
    Ignore the interface status and return OK regardless
@@ -891,22 +890,28 @@ Threshold Checks and Performance Data options:
 -k, --perfcheck ; -q, --extperfcheck 
    -k check the input/ouput bandwidth of the interface
    -q also check the error and discard input/output
---label
+--label_intstatus | --label (to be depreciated in next version, so use --label_intstatus)
    Add label before speed in output : in=, out=, errors-out=, etc...
 -B, --kbits
    Make the warning and critical levels in K|M|G Bits/s instead of K|M|G Bytes/s
 -G, --giga ; -M, --mega ; -u, --prct
    -G : Make the warning and critical levels in Gbps (with -B) or GBps
    -M : Make the warning and critical levels in Mbps (with -B) or MBps
-   -u : Make the warning and critical levels in % of reported interface speed.
--w, --warning=input,output[,error in,error out,discard in,discard out]
+   -u : Make the warning and critical levels in % of reported max interface speed.
+-w, --warning=input[/avg%],output[/avg%][,error in,error out,discard in,discard out]
    warning level for input / output bandwidth (0 for no warning)
      unit depends on B,M,G,u options
    warning for error & discard input / output in error/min (need -q)
--c, --critical=input,output[,error in,error out,discard in,discard out]
+-c, --critical=input[/avg%],output[/avg%][,error in,error out,discard in,discard out]
    critical level for input / output bandwidth (0 for no critical)
      unit depends on B,M,G,u options
    critical for error & discard input / output in error/min (need -q)
+-A, --avgtraffic[=navg,minsamples]
+   Calculate average of navg sample results of traffic to get total 50-percentle average
+   navg when not specified defaults to 288 which is 1 day for 5-minute check interval
+   When there are enough data (minsamples, 144 is default) this enables alert based on 
+   amount of traffic as as percent of avg, specified after '/' in -w and -c. This
+   threshold overrides one before / when enabled. Good valies here are 50%, 100% or 200%.
 -z, --zerothresholds
    if warning and/or critical thresholds are not specified, assume they are 0
    i.e. do not check thresholds, but still give input/ouput bandwidth for graphing
@@ -972,14 +977,15 @@ SNMP Authentication options and options valid only with SNMP:
    SNMP port (Default 161)
 -o, --octetlength=INTEGER
    Max-size of the SNMP message. Usefull in case of too long responses.
-   Be carefull with network filters. Range 484 - 65535, default are
-   usually 1472,1452,1460 or 1440.     
+   Range 484 - 65535. Be carefull with network filters.
+   Default are usually 1472,1452,1460 or 1440 depending on your system.
+   If bulk_snmp_queries are used (see below), its reset to 5 times default.
 -N, --descrname_oid=OID
    SNMP OID of the description table (optional for non-standard equipment)
 -O, --optionaltext_oid=OID
    SNMP OID for additional optional commentary text name for each interface
    This is added into output as interface "label" (but it is not matched on).
--g, --64bits
+--64bits, -g (-g will be depreciated in the next release, use only --64bits)
    Use 64 bits counters instead of the standard counters when checking
    bandwidth & performance data for interface >= 1Gbps.
    You must use snmp v2c or v3 to get 64 bits counters.
@@ -989,9 +995,15 @@ SNMP Authentication options and options valid only with SNMP:
    all SNMP checks together. When "-mm" or "--minimum_queries" option is used
    the number of queries is even smaller but there are no checks done to make
    sure ifindex description is still the same (not safe only if you add vlans)
---bulk_snmp_queries
-   Enables using GET_BULK_REQUEST (SNMP v2 and v3 only) to get data
-   While this may work and be faster on some systems, it fails on others 
+--bulk_snmp_queries[=optimize|std|on|off]
+   Enables or disables using GET_BULK_REQUEST to retrieve SNMP data. Options:
+     'on' will always try to use BULK_REQUESTS
+     'off' means do not use BULK_REQUESTS at all
+     'std' means queries are used to get table with snmp v2 and v3 but not get requests
+     'optimize' means queries are used for table and for get requests of > 30 OIDs
+   Default setting (if --bulk_snmp_queries is not specified) is 'std' without -m or -mm
+   and 'optimize' if -m or --mm options are specified. If you specify --bulk_snmp_queries
+   without text option after =, this enables 'optimize' even if -m or -mm are not used.
 --cisco=[oper,][addoper,][linkfault,][use_portnames|show_portnames]
    This enables special cisco snmp additions which:
    1) Provide extra detail on operational and fault status for physical ports.
@@ -1101,7 +1113,8 @@ sub check_options {
         't:i'   => \$o_timeout,    	'timeout:i'	=> \$o_timeout,
 	'i'	=> \$o_inverse,		'inverse'	=> \$o_inverse,
 	'a'	=> \$o_admin,		'admin'		=> \$o_admin,
-	'D'     => \$o_dormant,         'dormant'       => \$o_dormant,
+	'D'     => \$o_dormant,		'dormant_ok' => \$o_dormant,
+	'dormant' => \$o_dormant, 	# to be depreciated
         'I'     => \$o_ignorestatus,    'ignorestatus'  => \$o_ignorestatus,
 	'K'	=> \$o_admindown_ok,	'admindown_ok'	=> \$o_admindown_ok,
 	'r'	=> \$o_noreg,		'noregexp'	=> \$o_noreg,
@@ -1115,7 +1128,8 @@ sub check_options {
 	'z'	=> \$o_zerothresholds,	'zerothresholds' => \$o_zerothresholds,
         'B'     => \$o_kbits,           'kbits'         => \$o_kbits,
         's:i'   => \$o_short,      	'short:i'   	=> \$o_short,
-        'g'   	=> \$o_highperf,      	'64bits'   	=> \$o_highperf,
+        'g'   	=> \$o_highperf,  	# to be depreciated    	
+	'64bits' => \$o_highperf,
         'S:s'   => \$o_intspeed,      	'intspeed:s'   	=> \$o_intspeed,
         'y'   	=> \$o_perfp,      	'perfprct'   	=> \$o_perfp,
         'Y'   	=> \$o_perfr,      	'perfspeed'   	=> \$o_perfr,
@@ -1124,18 +1138,20 @@ sub check_options {
         'G'   	=> \$o_gig,      	'giga'   	=> \$o_gig,
         'u'   	=> \$o_prct,      	'prct'   	=> \$o_prct,
 	'o:i'   => \$o_octetlength,    	'octetlength:i' => \$o_octetlength,
-	'label'   => \$o_label,    	
+	'label_intstatus' => \$o_islabel,
+	'label' => \$o_islabel, 	# to be depreciated
         'd:i'   => \$o_delta,           'delta:i'     	=> \$o_delta,
 	'N:s'	=> \$o_descroid,	'descrname_oid:s' => \$o_descroid,
 	'O:s'	=> \$o_commentoid,	'optionaltext_oid:s' => \$o_commentoid,
 	'P:s'	=> \$o_prevperf,	'prev_perfdata:s' => \$o_prevperf,
 	'T:s'   => \$o_prevtime,        'prev_checktime:s'=> \$o_prevtime,
 	'pcount:i' => \$o_pcount,
-	'm'	=> \@o_minsnmp,		'minimize_queries' => \$o_minsnmp, 
-	'minimum_queries' => \$o_maxminsnmp, 'bulk_snmp_queries' => \$o_bulksnmp,
+	'A:s'	=> $o_traffavg,		'avgtraffic:s' => \$o_traffavg,
 	'F:s'   => \$o_filestore,       'filestore:s' => \$o_filestore,
+	'm'	=> \@o_minsnmp,		'minimize_queries' => \$o_minsnmp, 
+	'minimum_queries:s' => \$o_maxminsnmp, 'bulk_snmp_queries:s' => \$o_bulksnmp,
 	'cisco:s' => \$o_ciscocat,	'stp:s' =>	\$o_stp,
-	'nagios_with_saveddata' => \$o_nagios_saveddata
+	'nagios_with_saveddata' => \$o_nagios_saveddata,
     );
     if (defined ($o_help) ) { help(); exit $ERRORS{"UNKNOWN"}};
     if (defined($o_version)) { p_version(); exit $ERRORS{"UNKNOWN"}};
@@ -1190,6 +1206,25 @@ sub check_options {
 	#### octet length checks
 	if (defined ($o_octetlength) && (isnnum($o_octetlength) || $o_octetlength > 65535 || $o_octetlength < 484 )) {
 	    print "octet length must be < 65535 and > 484\n";print_usage(); exit $ERRORS{"UNKNOWN"};
+	}
+	# bulsnnmp setting
+	if (defined($o_bulksnmp)) {
+	    if ($o_bulksnmp eq '' || $o_bulksnmp eq 'optimize') {
+		$o_bulksnmp = 'optimize';
+	    }
+	    elsif ($o_bulksnmp ne 'std' && $o_bulksnmp ne 'on' && $o_bulksnmp ne 'off') {
+		print "bulksnmp option $o_bulsnmp is not known, valid are: optimize|std|on|off\n";
+		print_usage();
+		exit $ERRORS{"UNKNOWN"};
+	    }
+	}
+	else {
+	    if ($o_minsnmp || $o_maxminsmp) {
+		$o_bulksnmp='optimize';
+	    }
+	    else {
+		$o_bulksnmp='std';
+	    ]
 	}
     }
     else {
@@ -1435,7 +1470,12 @@ sub create_snmp_session {
    printf("ERROR opening session: %s.\n", $error);
    exit $ERRORS{"UNKNOWN"};
   }
-  if (defined($o_octetlength) || defined($o_bulksnmp)) {
+  return $session;
+}
+
+sub set_snmp_window {
+  my ($session, $is_bulk) = @_;
+  if (defined($session) && (defined($o_octetlength) || (defined($is_bulk) && $is_bulk))) {
 	my $oct_resultat=undef;
 	my $oct_test=$session->max_msg_size();
 	verb(" actual max octets:: $oct_test");
@@ -1453,7 +1493,6 @@ sub create_snmp_session {
 	$oct_test= $session->max_msg_size();
 	verb(" new max octets:: $oct_test");
   }
-  return $session;
 }
 
 # function that does snmp get request for a list of OIDs
@@ -1461,11 +1500,11 @@ sub create_snmp_session {
 # 3rd is optional text for error & debug info
 # 4th argument is optional hash of array to be filled with results
 sub snmp_get_request {
-  my ($session, $oids_ref, $table_name, $results) = @_;
+  my ($session, $oids_ref, $table_name, $results, $do_bulk_snmp) = @_;
   my $result = undef;
 
   verb("Doing snmp request on ".$table_name." OIDs: ".join(' ',@{$oids_ref}));
-  if (defined($o_bulksnmp) && $snmp_session_v > 1) {
+  if (defined($do_bulk_snmp) && $do_bulk_snmp==1 && $snmp_session_v > 1) {
     my @oids_bulk=();
     my ($oid_part1,$oid_part2);
     foreach(@{$oids_ref}) {
@@ -1502,6 +1541,31 @@ sub snmp_get_request {
   }
 
   return $result;
+}
+
+# does snmp get_table request and cheks if we got an error
+sub snmp_get_table {
+  my ($session, $oid, $table_name) = @_;
+  my $result = undef;
+
+  verb("Doing snmp get_table request on ".$table_name." OID: ".$oid);
+  if ($o_bulksnmp eq 'off') {
+      $result = $session->get_table(
+		-baseoid => $oid,
+		-maxrepetitions => 1
+      );
+   }
+   else {
+      $result = $session->get_table(
+		-baseoid => $oid,
+      );
+   }
+   if (!defined($result)) {
+      printf("SNMP ERROR getting table %s : %s.\n", $table_name, $session->error); 
+      $session->close;
+      exit $ERRORS{"UNKNOWN"};
+   }
+   return $result;
 }
 
 # executes shell command, returns results blob file pointer
@@ -1622,12 +1686,7 @@ sub getdata_localhost {
    #                  /usr/sbin/ndd /dev/hme link_speed
    # Also see: https://cfengine.com/forum/read.php?3,27223
 
-   if ($os ne "Linux") {
-	printf("Only Linux is currently supported for local interfaces\n");
-	exit $ERRORS{"UNKNOWN"};
-   }
-   # This is for linux, may want to move to separate function later
-   else {
+   if ($os eq "Linux") { # This is for linux, may want to move to separate function later
         $shell_ref = exec_shell_command("$linux_ifconfig -a");
 
 	$num_int=0;
@@ -1716,6 +1775,10 @@ sub getdata_localhost {
 	    }
 	}
    }
+   else { # ($os ne "Linux") {
+	printf("Only Linux is currently supported for local interfaces\n");
+	exit $ERRORS{"UNKNOWN"};
+   }
 }
 
 # code that retrieves data by SNMP and populates interfaces array is now in this function
@@ -1747,9 +1810,7 @@ sub getdata_snmp {
    my (@oid_perf,@oid_perf_outoct,@oid_perf_inoct,@oid_perf_inerr,@oid_perf_outerr,@oid_perf_indisc,@oid_perf_outdisc)= (undef,undef,undef,undef,undef,undef,undef);
    my ($result1,$result2,$data1) = (undef,undef,undef);
    my $int_status_extratext="";
-
-   # Create SNMP session
-   $session = create_snmp_session();
+   my $do_bulksnmp=0;	# set to 1 if bulksnmp queries are done
 
    if (defined($o_minsnmp) && %prev_perf_data) {
       # load old-style arrays
@@ -1796,47 +1857,29 @@ sub getdata_snmp {
       }
    }
 
+   # Create SNMP session
+   $do_bulk_snmp = 1 if $o_bulksnmp eq 'on';
+   $session = create_snmp_session();
+
    if (scalar(@tindex)==0) {
+      set_snmp_window($session,$do_bulk_snmp);
       # WL: Get cisco port->ifindex map table
       if (defined($o_ciscocat)) {
-	 $result2 = $session->get_table(
-		-baseoid => $cisco_port_ifindex_map 
-	 );
-	 if (!defined($result2)) {
-		printf("ERROR: Cisco port-index map table : %s.\n", $session->error);
-		$session->close;
-		exit $ERRORS{"UNKNOWN"};
-	 }
+	 $result2 = snmp_get_table($session, $cisco_port_ifindex_map, "Cisco port-index map");
 	 foreach (keys %$result2) {
 		$cisco_timap{$result2->{$_}}=$1 if /$cisco_port_ifindex_map\.(.*)/;
 	 }
       }
       # WL: Get stp port->ifindex map table
       if (defined($o_stp)) {
-         $result1 = $session->get_table(
-                -baseoid => $stp_dot1dbase_ifindex_map
-         );
-         if (!defined($result1)) {
-                printf("ERROR: STP port-index map table : %s.\n", $session->error);
-                $session->close;
-                exit $ERRORS{"UNKNOWN"};
-         }
+	 $result1 = snmp_get_table($session, $stp_dot1dbase_ifindex_map, "STP port-index map");
          foreach (keys %$result1) {
                 $stp_ifmap{$result1->{$_}}=$1 if /$stp_dot1dbase_ifindex_map\.(.*)/;
          }
       }
       $perfcache_time = $timenow;
-      verb("Getting Interfaces Description Table ($descr_table):");
-      # Get description table
-      $result1 = $session->get_table(
-	 -baseoid => $descr_table
-      );
-      if (!defined($result1)) {
-	 printf("ERROR: Description table : %s.\n", $session->error);
-	 $session->close;
-	 exit $ERRORS{"UNKNOWN"};
-      }
-      # Select interface by regexp of exact match and put the oid to query in an array
+      # Get description table, select interface by regexp or exact match and put the oid to query in an array
+      $result1 = snmp_get_table($session, $descr_table, "Interfaces Description Table");
       foreach my $key (keys %$result1) {
 	 $data1 = clean_int_name($result1->{$key});
 	 verb(" OID : $key, Clean Desc : $data1, Raw Desc: ".$result1->{$key});
@@ -1966,24 +2009,26 @@ sub getdata_snmp {
       }
 
       # Get the requested oid values
-      snmp_get_request($session, \@oids, "status table", $results);
+      $do_bulk_snmp =1 if $o_bulksnmp eq 'on' || ($o_bulksnmp eq 'optimize' && scalar(@oids)>30);
+      set_snmp_window($session,$do_bulk_snmp);
+      snmp_get_request($session, \@oids, "status table", $results. $do_bulk_snmp);
 
       # If not doing it as one query, do additional queries
       # to get the perf value if -f (performance) option defined or -k (check bandwidth)
       if ((defined($o_perf) || defined($o_checkperf) || defined($o_intspeed)) && !defined($o_minsnmp)) {
-	 snmp_get_request($session, \@oid_perf, "statistics table", $results);
+	 snmp_get_request($session, \@oid_perf, "statistics table", $results, $do_bulk_snmp);
       }
       # and additional cisco status tables
       if (defined($o_ciscocat) && !defined($o_minsnmp) && scalar(@oid_ciscostatus)>0) {
-	 snmp_get_request($session, \@oid_ciscostatus, "cisco status tables", $results);
+	 snmp_get_request($session, \@oid_ciscostatus, "cisco status tables", $results, $do_bulk_snmp);
       }
       # and stp state table if --stp option is given
       if (defined($o_stp) && !defined($o_minsnmp) && scalar(@oid_stpstate)>0) {
-	 snmp_get_request($session, \@oid_stpstate, "stp state table", $results);
+	 snmp_get_request($session, \@oid_stpstate, "stp state table", $results, $do_bulk_snmp);
       }
       # and additional comments / port description table
       if (defined($o_commentoid) && !defined($o_minsnmp) && scalar(@oid_commentlabel)>0) {
-	 snmp_get_request($session, \@oid_commentlabel, "comments table", $results);
+	 snmp_get_request($session, \@oid_commentlabel, "comments table", $results, $do_bulk_snmp);
       }
 
       $session->close;
@@ -2541,7 +2586,7 @@ for (my $i=0;$i < $num_int; $i++) {
       my $num_checkperf=(defined($o_ext_checkperf))?6:2;
       for (my $l=0;$l < $num_checkperf;$l++) {
 	    # Set labels if needed
-	    $checkperf_out_desc= (defined($o_label)) ? $countername[$l] : "";
+	    $checkperf_out_desc= (defined($o_islabel)) ? $countername[$l] : "";
 	    verb("Interface $i, threshold check $l : $checkperf_out[$l]");
 	    $print_out.="/" if $l!=0;
 	    if ((defined($o_crit_max[$l]) && $o_crit_max[$l] && ($checkperf_out[$l]>$o_crit_max[$l])) ||
