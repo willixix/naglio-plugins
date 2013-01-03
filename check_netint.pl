@@ -906,7 +906,7 @@ Threshold Checks and Performance Data options:
    critical level for input / output bandwidth (0 for no critical)
      unit depends on B,M,G,u options
    critical for error & discard input / output in error/min (need -q)
--A, --avgtraffic[=navg,minsamples]
+-A, --avgtraffic[=minsamples,navg]
    Calculate average of navg sample results of traffic to get total 50-percentle average
    navg when not specified defaults to 288 which is 1 day for 5-minute check interval
    When there are enough data (minsamples, 144 is default) this enables alert based on 
