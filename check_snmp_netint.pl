@@ -769,7 +769,7 @@ sub help {
 -C, --community=COMMUNITY NAME
    community name for the SNMP agent (used with v1 or v2c protocols)
 -2, --v2c
-   use snmp v2c (can not be used with -l, -x)
+   set protocol to snmp v2c (can not be used with -l, -x)
 -l, --login=LOGIN ; -x, --passwd=PASSWD
    Login and auth password for snmpv3 authentication 
    If no priv password exists, implies AuthNoPriv 
@@ -826,7 +826,7 @@ sub help {
    to check interface names table each time.
 -T, --prev_checktime
    This is used with -P and is a previous time plugin data was obtained,
-   use it as '-T \$LASTSERVICECHECK\$'
+   typically as '-T \$LASTSERVICECHECK\$'
 --pcount=INTEGER 
    How many sets of previus data to keep as performance data. By keeping
    at least couple sets allows for more realistic and less 'bursty' results

@@ -276,13 +276,13 @@
 #
 # check_snmp_netint using snmpv1:
 #   define command{
-#     command_name check_snmp_int_v1
-#     command_line $USER1$/check_snmp_netint.pl -H $HOSTADDRESS$ $USER7$ -n $ARG1$ $ARG2$
+#     command_name check_snmp_netint_v1
+#     command_line $USER1$/check_netint.pl -H $HOSTADDRESS$ $USER7$ -n $ARG1$ $ARG2$
 #   }
 # Checks FastEthernet 1 to 6 are up (snmpv1):
 #   define service {
 #     name check_int_1_6
-#     check_command check_snmp_int_v1!"FastEthernet-[1-6]"
+#     check_command check_snmp_netint_v1!"FastEthernet-[1-6]"
 #   }
 # Checks input bandwith on eth1 is < 100 KBytes/s and output is < 50 Kbytes/s
 # (critical at 0,0 means no critical levels). (snmpv3):
@@ -295,7 +295,7 @@
 # Linux server with one or more eth? and one or more bond? interface:
 #   define command {
 #        command_name check_snmp_network_interface_linux
-#        command_line $USER1$/check_snmp_int.pl -2 -f -e -C $USER6$ -H $HOSTADDRESS$
+#        command_line $USER1$/check_netint.pl -2 -f -e -C $USER6$ -H $HOSTADDRESS$
 # -n $ARG1$ -w $ARG2$ -c $ARG3$ -d 200 -q -k -y -M -B 
 # -m -P "$SERVICEPERFDATA$" -T "$LASTSERVICECHECK$"
 #   }
@@ -314,13 +314,13 @@
 # 255 ids are reserved for VLANs):
 #   define command {
 #       command_name check_snmp_network_interface_alteon
-#       command_line $USER1$/check_snmp_netint.pl -f -C $USER5$ -H $HOSTADDRESS$
+#       command_line $USER1$/check_netint.pl -f -C $USER5$ -H $HOSTADDRESS$
 # -N 1.3.6.1.2.1.2.2.1.1 -n $ARG1$ -w $ARG2$ -c $ARG3$ -d 200 -k -y 
 # -M -B -m -P "$SERVICEPERFDATA$" -T "$LASTSERVICECHECK$"
 #   }
 #   define service{
 #        use                             std-switch-service
-#        servicegroups                   snmp,netstatistics
+#     RufioRufio   servicegroups                   snmp,netstatistics
 #        hostgroup_name                  alteon184
 #        service_description             Alteon Gigabit Port 1
 #        check_command                   check_snmp_network_interface_alteon!"257"!0,0!0,0
@@ -329,7 +329,7 @@
 # Cisco CatOS switch (will work for 5500 and many others), full set of possible options is given: 
 #   define command {
 #      command_name check_snmp_network_interface_catos
-#      command_line $USER1$/check_snmp_netint.pl -2 -f -C $USER5$
+#      command_line $USER1$/check_netint.pl -2 -f -C $USER5$
 # -H $HOSTADDRESS$ -N 1.3.6.1.2.1.31.1.1.1.1 --cisco=show_portnames --stp
 # -n $ARG1$ -w $ARG2$ -c $ARG3$ -d 200 -e -q -k -y -M -B -mm
 # -P "$SERVICEPERFDATA$" -T "$LASTSERVICECHECK$"
@@ -345,7 +345,7 @@
 # Cisco 2960 (IOS) switch (has only portOperStatus extended port state table):
 #   define command {
 #      command_name check_snmp_network_interface_cisco2960
-#      command_line $USER1$/check_snmp_netint.pl -2 -f -C $USER5$
+#      command_line $USER1$/check_netint.pl -2 -f -C $USER5$
 # -H $HOSTADDRESS$ --cisco=oper,show_portnames --stp -n $ARG1$ -w $ARG2$
 # -c $ARG3$ -d $USER8$ -e -q -k -y -M -B -mm -P "$SERVICEPERFDATA$"
 # -T "$LASTSERVICECHECK$" --label_intstatus
@@ -568,6 +568,10 @@
 #		     message size is reset to 5 times the default with --bulk_snmp_queries
 # 2.4b1 - 12/24/12 - bulk_snmp option extended with several settings and its made default
 #                    when -m/-mm are used and there are > 30 OIDs to be queried
+# 2.4b2 - 03/01/13 - Added --notfound_critical option to exit with CRITIAL instead of UNKNOWN
+#                    when interface is not found (this is for monitoring ppp and virtual interfaces)
+# 2.4b3 - 04/04/13 - Updated help text to not start line with "uses" which confuses rpmbuild
+#                    (issue reported by Roland Kool)
 #
 # ============================ LIST OF CONTRIBUTORS ===============================
 #
@@ -659,20 +663,21 @@ my %stp_portstate=('0'=>'unknown',1=>'disabled',2=>'blocking',3=>'listening',4=>
 my %stp_portstate_reverse=(); # becomes reverse of above, i.e. 'disabled'=>1, etc
 
 # Standard options
-my $o_host = 		undef; 	# hostname
-my $o_timeout=  	undef;  # Timeout (Default 10) 
-my $o_descr = 		undef; 	# description filter
-my $o_help=		undef; 	# wan't some help ?
-my $o_admin=		undef;	# admin status instead of oper
-my $o_inverse=  	undef;	# Critical when up
+my $o_host = 		undef; 	 # hostname
+my $o_timeout=  	undef;   # Timeout (Default 10) 
+my $o_descr = 		undef; 	 # description filter
+my $o_help=		undef; 	 # wan't some help ?
+my $o_admin=		undef;	 # admin status instead of oper
+my $o_inverse=  	undef;	 # Critical when up
 my $o_ignorestatus=     undef;  # Ignore interface NAK status, always report OK
-my $o_dormant=        	undef;  # Dormant state is OK
-my $o_verb=		undef;	# verbose mode/debug file name
-my $o_version=		undef;	# print version
-my $o_noreg=		undef;	# Do not use Regexp for name
-my $o_short=		undef;	# set maximum of n chars to be displayed
-my $o_islabel=		undef;	# add label before speed (in, out, etc...).
-my $o_admindown_ok=	undef;  # admin down is ok (usefull when checking operational status)
+my $o_dormant=        	undef;   # Dormant state is OK
+my $o_verb=		undef;	 # verbose mode/debug file name
+my $o_version=		undef;	 # print version
+my $o_noreg=		undef;	 # Do not use Regexp for name
+my $o_short=		undef;	 # set maximum of n chars to be displayed
+my $o_islabel=		undef;	 # add label before speed (in, out, etc...).
+my $o_admindown_ok=	undef;   # admin down is ok (usefull when checking operational status)
+my $o_notfound_crit=	undef;	 # return critical if interface is not found
 
 # Speed/error checks
 my $o_warn_opt=         undef;  # warning options
@@ -681,15 +686,15 @@ my @o_warn_min=         undef;  # warning levels of perfcheck
 my @o_warn_max=         undef;  # warning levels of perfcheck
 my @o_crit_min=         undef;  # critical levels of perfcheck
 my @o_crit_max=         undef;  # critical levels of perfcheck
-my $o_checkperf=	undef;	# checks in/out/err/disc values
-my $o_delta=		300;	# delta of time of perfcheck (default 5min)
-my $o_ext_checkperf=	undef;  # extended perf checks (+error+discard) 
+my $o_checkperf=	undef;	 # checks in/out/err/disc values
+my $o_delta=		300;	 # delta of time of perfcheck (default 5min)
+my $o_ext_checkperf=	undef;   # extended perf checks (+error+discard) 
 my $o_highperf=         undef;  # Use 64 bits counters
 my $o_meg=              undef;  # output in MBytes or Mbits (-M)
 my $o_gig=              undef;  # output in GBytes or Gbits (-G)
 my $o_prct=             undef;  # output in % of max speed  (-u)
-my $o_kbits=	        undef;	# Warn and critical in Kbits instead of KBytes
-my $o_zerothresholds=	undef;  # If warn/crit are not specified, assume its 0
+my $o_kbits=	        undef;	 # Warn and critical in Kbits instead of KBytes
+my $o_zerothresholds=	undef;   # If warn/crit are not specified, assume its 0
 
 # Performance data options
 my $o_perf=             undef;  # Output performance data
@@ -698,30 +703,30 @@ my $o_perfp=            undef;  # output performance data in % of max speed (-y)
 my $o_perfr=            undef;  # output performance data in bits/s or Bytes/s (-Y)
 my $o_perfo=            undef;  # output performance data in octets (-Z)
 my $o_intspeed=         undef;  # include speed in performance output (-S), specify speed
-my $o_traffavg=		undef;  # New v2.4 option that allows to keep track of average
-				# traffic (50 percentile) over longer period and to set
-				# threshold based on deviation from this average
+my $o_traffavg=		undef;   # New v2.4 option that allows to keep track of average
+				 # traffic (50 percentile) over longer period and to set
+				 # threshold based on deviation from this average
 
 # WL: These are for previous performance data that nagios can send data to the plugin
 # with $SERVICEPERFDATA$ macro (and $SERVICESAVEDDATA$ for future naios versions).
 # This allows to calculate traffic without temporary file and also used to cache
 # SNMP table info so as not to retreive it every time 
-my $o_prevperf=		undef;	# performance data given with $SERVICEPERFDATA$ macro
+my $o_prevperf=		undef;	 # performance data given with $SERVICEPERFDATA$ macro
 my $o_prevtime=         undef;  # previous time plugin was run $LASTSERVICECHECK$ macro
-my @o_minsnmp=		();     # see below
-my $o_minsnmp=		undef;	# minimize number of snmp queries
-my $o_maxminsnmp=	undef;  # minimize number of snmp queries even futher (slightly less safe in case of switch config changes)
-my $o_bulksnmp=		undef;	# do snmp bulk request
-my $o_filestore=        "";  # path of the file to store cached data in - overrides $o_base_dir
-my $o_pcount=		2;	# how many sets of previous data should be in performance data
-my $o_nagios_saveddata=	undef;	# enabled SAVEDDATA special output after ||
+my @o_minsnmp=		();      # see below
+my $o_minsnmp=		undef;	 # minimize number of snmp queries
+my $o_maxminsnmp=	undef;   # minimize number of snmp queries even futher (slightly less safe in case of switch config changes)
+my $o_bulksnmp=		undef;	 # do snmp bulk request
+my $o_filestore=        "";     # path of the file to store cached data in - overrides $o_base_dir
+my $o_pcount=		2;	 # how many sets of previous data should be in performance data
+my $o_nagios_saveddata=	undef;	 # enabled SAVEDDATA special output after ||
 
 # These are unrelated WL's contribs to override default description OID 1.3.6.1.2.1.2.2.1.2 and for stp and cisco m[a|y]stery
 my $o_descroid=         undef;  # description oid, overrides $descr_table
-my $o_commentoid=	undef;  # comment text oid, kind-of like additional label text
-my $o_ciscocat=		undef;	# enable special cisco catos hacks
-my %o_cisco=		();	# cisco options
-my $o_stp=		undef;	# stp support option
+my $o_commentoid=	undef;   # comment text oid, kind-of like additional label text
+my $o_ciscocat=		undef;	 # enable special cisco catos hacks
+my %o_cisco=		();	 # cisco options
+my $o_stp=		undef;	 # stp support option
 
 # Login and other options specific to SNMP
 my $o_port =		161;    # SNMP port
@@ -816,7 +821,7 @@ sub print_usage {
 
 sub isnnum { # Return true if arg is not a number
   my $num = shift;
-  if ( $num =~ /^(\d+\.?\d*)|(^\.\d+)$/ ) { return 0 ;}
+#   if ( $num =~ /^(\d+\.?\d*)|(^\.\d+)$/ ) { return 0 ;}
   return 1;
 }
 
@@ -826,8 +831,8 @@ sub ascii_to_hex { # Convert each ASCII character to a two-digit hex number [WL]
 }
 
 sub help {
-   print "\nNetwork Interfaces Monitor Plugin for Nagios (check_netint/check_snmp_netint) v. ",$Version,"\n";
-   print "GPL 2.0 or 3.0 licence, (c)2004-2007 Patrick Proy, (c)2007-2012 William Leibzon\n";
+   print "\nNetwork Interfaces Monitoring Plugin for Nagios (check_netint/check_snmp_netint) v. ",$Version,"\n";
+   print "GPL 2.0 or 3.0 licence, (c)2004-2007 Patrick Proy, (c)2007-2013 William Leibzon\n";
    print "Please see documentation for a full list of authors and contributors\n\n";
    print_usage();
    print <<EOT;
@@ -850,6 +855,9 @@ Interface Selection and Status Output options:
    Test it before, because there are known bugs (ex : trailling /)
 -r, --noregexp
    Do not use regexp to match NAME
+--notfound_critical
+   Return CRITICAL error if interface is not found instead of UNKNOWN.
+   This is for ppp and virtual interfaces. Should be used with -r.
 -i, --inverse
    Return status CRITICAL when UP instead
 -a, --admin
@@ -876,7 +884,7 @@ Threshold Checks and Performance Data options:
    Add error & discard to Perfparse output
 -S, --intspeed[=[OK|WARNING|CRITICAL<>]1000000Kb|100000000Kb|100000000Kb|10Mb|100Mb|1000Mb]
    If -S is used by itself, this adds speed in performance output in bits/s.
-   This option also allows to specify speed of the interface if it can not be found by plugin
+   Full option also allows to specify speed of the interface if it can not be found by plugin
    or if what plugin determined is wrong. Be carefull, if you're checking multiple interfaces,
    this will override and set speed for all of them. Additionally if you prefix speed with
    WARNING<> or CRITICAL<> the alert will be issued if speed is not what is expected.
@@ -888,9 +896,9 @@ Threshold Checks and Performance Data options:
    -Y : output performance data in bits/s or Bytes/s (depending on -B)
    -Z : output performance data in octets i.e. bytes (always so with -P)
 -k, --perfcheck ; -q, --extperfcheck 
-   -k check the input/ouput bandwidth of the interface
-   -q also check the error and discard input/output
---label_intstatus | --label (to be depreciated in next version, so use --label_intstatus)
+   -k check (or just show on status line if -z) the input/ouput bandwidth of the interface
+   -q also check and show the error and discard input/output data
+--label_intstatus | --label (to be depreciated in next version, star using --label_intstatus)
    Add label before speed in output : in=, out=, errors-out=, etc...
 -B, --kbits
    Make the warning and critical levels in K|M|G Bits/s instead of K|M|G Bytes/s
@@ -898,24 +906,26 @@ Threshold Checks and Performance Data options:
    -G : Make the warning and critical levels in Gbps (with -B) or GBps
    -M : Make the warning and critical levels in Mbps (with -B) or MBps
    -u : Make the warning and critical levels in % of reported max interface speed.
--w, --warning=input[/avg%],output[/avg%][,error in,error out,discard in,discard out]
+-w, --warning=input[/avg%],output[/avg%][,error_in,error_out,discard_in,discard_out]
    warning level for input / output bandwidth (0 for no warning)
      unit depends on B,M,G,u options
-   warning for error & discard input / output in error/min (need -q)
--c, --critical=input[/avg%],output[/avg%][,error in,error out,discard in,discard out]
+   error_in/out and discard_in/out thresholds require -q
+   avg% in/out requires -A (see below) and activates only if there are enough samples
+-c, --critical=input[/avg%],output[/avg%][,error_in,error_out,discard_in,discard_out]
    critical level for input / output bandwidth (0 for no critical)
      unit depends on B,M,G,u options
-   critical for error & discard input / output in error/min (need -q)
+   error_in/out and discard_in/out thresholds require -q
+   avg% in/out requires -A (see below) and activates only if there are enough samples
 -A, --avgtraffic[=minsamples,navg]
-   Calculate average of navg sample results of traffic to get total 50-percentle average
-   navg when not specified defaults to 288 which is 1 day for 5-minute check interval
+   Calculate average of navg sample results of traffic to get total 50-percentle average.
+   If navg is not specified, it defaults to 288 which is 1 day for 5-minute check interval.
    When there are enough data (minsamples, 144 is default) this enables alert based on 
    amount of traffic as as percent of avg, specified after '/' in -w and -c. This
    threshold overrides one before / when enabled. Good valies here are 50%, 100% or 200%.
 -z, --zerothresholds
    if warning and/or critical thresholds are not specified, assume they are 0
    i.e. do not check thresholds, but still give input/ouput bandwidth for graphing
-   This option also prevents tmp files of being writtena.
+   This option also prevents tmp files of being written.
 
 Options for saving results of previous checks to calculate Traffic & Utilization:
 
@@ -927,7 +937,7 @@ Options for saving results of previous checks to calculate Traffic & Utilization
    to check interface names table each time.
 -T, --prev_checktime
    This is used with -P and is a previous time plugin data was obtained,
-   use it as '-T \$LASTSERVICECHECK\$'. This is now optional as plugin
+   typically as '-T \$LASTSERVICECHECK\$'. This is now optional as plugin
    will also save time as part of performance variables and get it with -P
 --pcount=INTEGER 
    Default: 2
@@ -964,7 +974,7 @@ SNMP Authentication options and options valid only with SNMP:
 -C, --community=COMMUNITY NAME
    community name for the SNMP agent (used with v1 or v2c protocols)
 -2, --v2c
-   use snmp v2c (can not be used with -l, -x)
+   set snmp protocol to v2c (can not be used with -l, -x)
 -l, --login=LOGIN ; -x, --passwd=PASSWD
    Login and auth password for snmpv3 authentication 
    If no priv password exists, implies AuthNoPriv 
@@ -1102,8 +1112,8 @@ sub check_options {
    	'v:s'	=> \$o_verb,		'verbose:s' => \$o_verb, "debug:s" => \$o_verb, 
         'h'     => \$o_help,    	'help'        	=> \$o_help,
         'H:s'   => \$o_host,		'hostname:s'	=> \$o_host,
-        'p:i'   => \$o_port,   		'port:i'	=> \$o_port,
-	'n:s'   => \$o_descr,           'name:s'        => \$o_descr,
+        'p:i'   => \$o_port,   	'port:i'	=> \$o_port,
+	'n:s'   => \$o_descr,          'name:s'        => \$o_descr,
         'C:s'   => \$o_community,	'community:s'	=> \$o_community,
 	 '2'	=> \$o_version2,	'v2c'		=> \$o_version2,
 	'l:s'	=> \$o_login,		'login:s'	=> \$o_login,
@@ -1117,37 +1127,38 @@ sub check_options {
 	'dormant' => \$o_dormant, 	# to be depreciated
         'I'     => \$o_ignorestatus,    'ignorestatus'  => \$o_ignorestatus,
 	'K'	=> \$o_admindown_ok,	'admindown_ok'	=> \$o_admindown_ok,
+	'notfound_critical' = \$o_notfound_crit,
 	'r'	=> \$o_noreg,		'noregexp'	=> \$o_noreg,
 	'V'	=> \$o_version,		'version'	=> \$o_version,
-        'f'     => \$o_perf,            'perfparse'     => \$o_perf,
-        'e'     => \$o_perfe,           'error'     	=> \$o_perfe,
-        'k'     => \$o_checkperf,       'perfcheck'   	=> \$o_checkperf,
-        'q'     => \$o_ext_checkperf,   'extperfcheck'  => \$o_ext_checkperf,
-        'w:s'   => \$o_warn_opt,       	'warning:s'   	=> \$o_warn_opt,
+        'f'     => \$o_perf,           'perfparse'     => \$o_perf,
+        'e'     => \$o_perfe,          'error'     	=> \$o_perfe,
+        'k'     => \$o_checkperf,      'perfcheck'   	=> \$o_checkperf,
+        'q'     => \$o_ext_checkperf,  'extperfcheck'  => \$o_ext_checkperf,
+        'w:s'   => \$o_warn_opt,       'warning:s'   	=> \$o_warn_opt,
         'c:s'   => \$o_crit_opt,      	'critical:s'   	=> \$o_crit_opt,
 	'z'	=> \$o_zerothresholds,	'zerothresholds' => \$o_zerothresholds,
-        'B'     => \$o_kbits,           'kbits'         => \$o_kbits,
+        'B'     => \$o_kbits,          'kbits'         => \$o_kbits,
         's:i'   => \$o_short,      	'short:i'   	=> \$o_short,
         'g'   	=> \$o_highperf,  	# to be depreciated    	
 	'64bits' => \$o_highperf,
         'S:s'   => \$o_intspeed,      	'intspeed:s'   	=> \$o_intspeed,
         'y'   	=> \$o_perfp,      	'perfprct'   	=> \$o_perfp,
         'Y'   	=> \$o_perfr,      	'perfspeed'   	=> \$o_perfr,
-	'Z'     => \$o_perfo,           'perfoctet'     => \$o_perfo,
+	'Z'     => \$o_perfo,          'perfoctet'     => \$o_perfo,
         'M'   	=> \$o_meg,      	'mega'   	=> \$o_meg,
         'G'   	=> \$o_gig,      	'giga'   	=> \$o_gig,
         'u'   	=> \$o_prct,      	'prct'   	=> \$o_prct,
-	'o:i'   => \$o_octetlength,    	'octetlength:i' => \$o_octetlength,
+	'o:i'   => \$o_octetlength,    'octetlength:i' => \$o_octetlength,
 	'label_intstatus' => \$o_islabel,
 	'label' => \$o_islabel, 	# to be depreciated
-        'd:i'   => \$o_delta,           'delta:i'     	=> \$o_delta,
+        'd:i'   => \$o_delta,          'delta:i'     	=> \$o_delta,
 	'N:s'	=> \$o_descroid,	'descrname_oid:s' => \$o_descroid,
 	'O:s'	=> \$o_commentoid,	'optionaltext_oid:s' => \$o_commentoid,
 	'P:s'	=> \$o_prevperf,	'prev_perfdata:s' => \$o_prevperf,
-	'T:s'   => \$o_prevtime,        'prev_checktime:s'=> \$o_prevtime,
+	'T:s'   => \$o_prevtime,       'prev_checktime:s'=> \$o_prevtime,
 	'pcount:i' => \$o_pcount,
 	'A:s'	=> $o_traffavg,		'avgtraffic:s' => \$o_traffavg,
-	'F:s'   => \$o_filestore,       'filestore:s' => \$o_filestore,
+	'F:s'   => \$o_filestore,      'filestore:s' => \$o_filestore,
 	'm'	=> \@o_minsnmp,		'minimize_queries' => \$o_minsnmp, 
 	'minimum_queries:s' => \$o_maxminsnmp, 'bulk_snmp_queries:s' => \$o_bulksnmp,
 	'cisco:s' => \$o_ciscocat,	'stp:s' =>	\$o_stp,
@@ -1394,7 +1405,6 @@ sub int_name_match {
     # test by regexp or exact match
     return ($name eq $o_descr) if defined($o_noreg);
     return ($name =~ /$o_descr/);
-}
 
 # new function that cleans interface name as it may appear in SNMP into what we use
 sub clean_int_name {
@@ -1782,7 +1792,7 @@ sub getdata_localhost {
 }
 
 # code that retrieves data by SNMP and populates interfaces array is now in this function
-# instead of directly directly part of non-function main code below
+# instead of directly part of being part of main code section below
 sub getdata_snmp {
    # global arrays of interface data used used for snmp retrieval
    my $session = undef;
@@ -2281,7 +2291,7 @@ $SIG{'ALRM'} = sub {
  exit $ERRORS{"UNKNOWN"};
 };
 
-#Select interface by regexp of exact match
+#Select interface by regexp or exact match
 verb("Filter : $o_descr") if defined($o_descr);
 
 # WL: check if '-m' option is passed and previous description ids & names are available from
@@ -2299,12 +2309,19 @@ else {
 
 if ($num_int == 0) {
    if (defined($o_descr)) {
-	  print "ERROR : Unknown interface $o_descr\n";
+	  if (defined($o_notfound_crit)) {
+	      print "ERROR : Interface $o_descr not found\n";
+	      exit $ERRORS{"UNKNOWN"};
+	  }
+	  else {
+	      print "ERROR : Unknown interface $o_descr\n";
+	      exit $ERRORS{"UNKNOWN"};
+	  }
    }
    else {
 	  print "ERROR : can not find any network interfaces\n";
+	  exit $ERRORS{"UNKNOWN"};
    }
-   exit $ERRORS{"UNKNOWN"};
 }
 
 # some more global variables, some should possibly move further up to main vars definition
