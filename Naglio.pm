@@ -35,16 +35,16 @@ our $AUTHOR     = "William Leibzon";
 #
 # [2008-2011]  Threshold parsing and check code had been rewritten and support added for specifying
 #	       range per plugin guidelines: http://nagiosplug.sourceforge.net/developer-guidelines.html
-#	       Internal structures had been changing and becoming more complex to various cases.
+#	       Internal structures had been changing and becoming more complex to handle various cases.
 #	       In 2010-2012 plugins started to get support for ;warn;crit output of thresholds in perf,
 #	       as specified in the guidelines.
 #
-# [Early 2012] Code from check_memcached had been used as a base for check_memcached and then
-#	       check_redis plugins with some of the latest threshold code from check_netstat
-#	       with more updates. Starting with check_redis the code from check_options() and
-#	       from main part of plugin that was very similar across my plugins were separated
-#	       into their own functions. KNOWN_STATS_VARS array was introduced as well to be
-#	       able to properly add UOM symbol ('c', '%', 's', 'ms', 'B', 'KB') to perfout.
+# [Early 2012] Code from check_mysqld.pl had been used as a base for check_memcached.pl and then
+#	       check_redis.pl plugins with some of the latest threshold code from check_netstat
+#	       merged in there. Starting with check_redis the code from check_options() and
+#	       from core section of plugin that was similar across many plugins was abstracted
+#	       into several functions. KNOWN_STATS_VARS array was introduced to be able to
+#	       properly add UOM symbol ('c', '%', 's', 'ms', 'B', 'KB') to perfout.
 #	       check_memcached and check_redis also included support for calculating rate of
 #	       variables in a similar way to how its been done in check_snmp_netint
 #
@@ -52,23 +52,26 @@ our $AUTHOR     = "William Leibzon";
 #	       with special threshold line syntax:
 #                --option=WARN:threshold,CRIT:threshold,ABSENT:OK|WARNING|CRITICAL|UNKNOWN,DISPLAY:YES|NO,PERF:YES|NO
 #	       This was extension from just doing --option=WARN,CRIT to have a more universal
-#	       and extendable way to specify and alike parameters for checking. check_redis 0.6
-#	       also introduced support automatically adding long options with above syntax based
-#	       on description in KNOWN_STATS_VARS. The functions for the library were all separated
-#	       into their own section of the code. When inported to check_memcached global variables
-#	       were added to that section and accessor functions written for some of them.
-#	       This is considered 0.1 version of the library
+#	       and extendable way to specify checked attribute parameters other than just warning
+#	       and critical thresholds. check_redis 0.6 also introduced support for automatically added
+#	       per-attribute long options with syntax as per above and description from KNOWN_STATS_VARS.
+#	       The functions for the library were all separated into their own section of the code.
+#	       When imported into check_memcached global variables were added to that section and accessor
+#	       functions written for some of them. This is considered 0.1 version of the library
 #
 # [0.2 - Aug 28, 2012] In August the library code in check_memcached had been re-written from
 #	       just functions to object-oriented perl interface. All variables were hidden from
-#	       direct access with accessor functions written. Documentation header had been added
-#	       to each library function and the header for the library itself. This was major work
-#	       taking over a week to do although functions and mainly sllllame as in 0.1. They are
-#	       not stabilized and so library is only to be included within plugins. Support was
-#	       also added for regex matching with PATTERN option spec. Also added NAME spec.
-#	       License changed to LGPL from GPL for this code.
+#	       direct access with accessor functions. Documentation header had been added to each
+#	       library function and this header for the library itself added too. This was major work
+#	       taking over a week to do although functions are mainly same as in 0.1. The function names
+#	       and parameters to all functions are not fully stabilized yet, so library is only to be
+#	       included within plugins for now. Support was also added for regex matching with PATTERN
+#	       option spec. Also added NAME spec. License changed to LGPL from GPL for this code.
 # [0.21 - Sep 3, 2012] Fix bug in handling absent data
-# [0.22 - Mar 23, 2013] Fixed bug in parse_threshold function (reported by Charlie Langrall)
+# [0.22 - Mar 23, 2013] Fixed bug in parse_threshold function (reported by Charlie Langrall). 
+#	       This bug was found in check_snmp_temperature and affected certain cases of
+#	       range specification. The bug dates back to 2009 or 2012 when code for threshold
+#	       range spec from nagios plugins spec was added.
 #
 # ================================== LIBRARY TODO =================================================
 #
@@ -83,11 +86,11 @@ our $AUTHOR     = "William Leibzon";
 #     library/base. The idea was also floated around on nagios-devel list.
 # (d) Support specifying variables as expressions. This is straight out of check_snmp_atributes
 #     and maybe part of it can be reused for this
-# (e) Add common SNMP functions into library as so many of my plugins use it#
+# (e) Add common SNMP functions into library as so many of my plugins use it
 # (f) Add more functions to make this library easier to use and stabilize its interfaces.
-#     Port my plugins to this library.
+#     Port more of my plugins to use this library.
 # (f) Add support for functions in Nagios-Plugins perl library. While its interfaces are
-#     different, I believe, it'd be possible to add "shim" code to support them too.
+#     different, I believe, it'd be possible to add "shim" code to support them with this library.
 # (h) Write proper Perl-style documentation as well as web documentation (much of above maybe
 #     moved to web documentation) and move library to separate GITHUB project. Release it.
 # (i) Port this library to Python and write one or two example plugins
@@ -293,10 +296,10 @@ sub usage {
 }
 
 #  @DESCRIPTION   : This function converts time in seconds to nice & short output format
-#  @LAST_CHANGED  : 02-10-1 by WL
+#  @LAST_CHANGED  : 02-10-13 by WL
 #  @INPUT         : ARG1 - time in seconds
-#  @RETURNS       : string ofptime for human consumption
-#  @PRIVACY & USE : PUBLIC, Maybe used directly or as object instance function :
+#  @RETURNS       : string of time for human consumption
+#  @PRIVACY & USE : PUBLIC, Maybe used directly or as an object instance function :
 sub readable_time {
   my ($self,$total_sec) = _self_args(@_);
   my ($sec,$mins,$hrs,$days);
