@@ -3,7 +3,7 @@
 # ============================== SUMMARY =====================================
 #
 # Program : check_snmp_raid / check_sasraid_megaraid / check_megaraid
-# Version : 2.2
+# Version : 2.2b1
 # Date    : Apr 30, 2013
 # Author  : William Leibzon - william@leibzon.org
 # Copyright: (C) 2006-2013 William Leibzon
@@ -223,7 +223,7 @@
 #	    - additional controller status info is printed out whe this is checked, i.e. ', powersupply is ok"
 #	    - data collected for --extrainfo option goes last and labels 'tasks' and 'models'
 #             are added before [] bracketed text that contains models & tasks data
-#
+#              
 # ========================== LIST OF CONTRIBUTORS =============================
 #
 # The following individuals have contributed code, patches, bug fixes and ideas to
@@ -733,7 +733,7 @@ sub print_version {
 # display usage information
 sub print_usage {
         print "Usage:\n";
-        print "$0 [-s <snmp_version>] -H <host> (-C <snmp_community>) | (-l login -x passwd [-X pass -L <authp>,<privp>) [-p <port>] [-t <timeout>] [-O <base oid>] [-a <alert level>] [--extra_info] [--check_battery] [-g <num good drives>] [--drive_errors -P <previous performance data> -S <previous state>] [-v [DebugLogFile] || -d DebugLogFile] [--debug_time] [--snmp_optimize] -T megaraid|sasraid|perc3|perc4|perc5|perc6|mptfusion|sas6ir|sas6|adaptec|smartarray|eti|ultrastor\n OR \n";
+        print "$0 [-s <snmp_version>] -H <host> (-C <snmp_community>) | (-l login -x passwd [-X pass -L <authp>,<privp>) [-p <port>] [-t <timeout>] [-O <base oid>] [-A <status label text>] [-a <alert level>] [--extra_info] [--check_battery] [-g <num good drives>] [--drive_errors -P <previous performance data> -S <previous state>] [-v [DebugLogFile] || -d DebugLogFile] [--debug_time] [--snmp_optimize] -T megaraid|sasraid|perc3|perc4|perc5|perc6|mptfusion|sas6ir|sas6|adaptec|smartarray|eti|ultrastor|synology\n OR \n";
         print "$0 --version | $0 --help (use this to see get more detailed documentation of above options)\n";
 }
 
@@ -761,17 +761,18 @@ sub help {
         print "    Specify text to be printed first in nagios status line. Default label of \"Raid\"\n";
         print "  -T, --controller_type <type>\n";
         print "    Type of controller, specify one of:\n";
-        print "       megaraid|sasraid|perc3|perc4|perc5|perc6|perch700|mptfusion|sas6|sas6ir\n";
-        print "	       |adaptec|hp|smartarray|eti|ultrastor|synology\n";
-        print "       (megaraid=perc3,perc4; sasraid=perc5,perc6,perch700; mptfusion=sas6ir,sas6;\n"; 
-        print "		smartarray=hp; ultrastor=eti)\n";
-        print "           Note: 'sasraid' is default type if not specified for 0.x, 1.x, 2.1 and 2.2\n";
-        print "                  plugin version. From 2.3 specifying controller type will be required!\n"; 
+        print "       megaraid|sasraid|perc3|perc4|perc5|perc6|perch700|mptfusion|sas6|sas6ir|\n";
+        print "	       adaptec|hp|smartarray|eti|ultrastor|synology\n";
+        print "    (aliases: megaraid=perc3,perc4; sasraid=perc5,perc6,perch700;\n"; 
+        print "              mptfusion=sas6ir,sas6; smartarray=hp; ultrastor=eti)\n";
+        print "    Note: 'sasraid' has been default type if not specified for 1.x, 2.1 and 2.2\n";
+        print "           plugin versions. From 2.3 specifying controller type will be required!\n"; 
         print "  -a, --alert <alert level>\n";
         print "    Alert status to use if an error condition not otherwise known is found\n";
         print "    accepted values are: \"crit\" and \"warn\" (defaults to crit)\n";
-        print "    Note: This is almost unused now as alerts for known SNMP status conditions\n";
-        print "          are specified in special arrays for each controller type based on its MIB\n";
+        print "    Note: This option should not be used any more and will be depreciated in 3.x version\n";
+        print "          type of alert depending on SNMP status from MIB is now specified in arrays for each card type\n";
+        print "          (except old special cases like megaraid & sasraid drive error counts for which it still applies)\n"; 
         print "  -b, --check_battery\n";
         print "    Check and output information on hard drive batteries (BBU) for supported cards\n";
         print "    'sasraid' and 'adaptec' card types are currently supported, more maybe added later\n"; 
@@ -863,9 +864,9 @@ sub print_and_exit {
         }
         else {
                 print " ". $_  ."=". $prev_perf{$_} foreach keys %prev_perf;
+                print " total_merr=".$curr_perf{'total_merr'} if defined($curr_perf{'total_merr'});
+                print " total_merr=".$curr_perf{'total_oerr'} if defined($curr_perf{'total_oerr'});
         }
-        print " total_merr=".$total_merr if defined($total_merr);
-        print " total_oerr=".$total_oerr if defined($total_oerr);
         if ($opt_debugtime) {
                 print " time_".$_ ."=". $debug_time{$_} foreach keys %debug_time;
         }
@@ -992,7 +993,7 @@ sub check_options {
   }
 
   # set label
-  $label = $opt_label if (defined($opt_label) && $opt_label;
+  $label = $opt_label if defined($opt_label) && $opt_label;
   
   # previos performance data string and previous state
   %prev_perf=process_perf($opt_perfdata) if $opt_perfdata;
@@ -1359,7 +1360,7 @@ if (scalar(@extra_oids)>0) {
 # additional controller status checks
 my $controller_status_info="";
 my $controller_nagios_status = $nagios_status;
-if (scalar(keys %controller_status_oids)>0)) {
+if (scalar(keys %controller_status_oids)>0) {
     foreach $line (keys %controller_status_oids) {
         $code = $snmp_result->{$controller_status_oids{$line}};
         if (defined($code)) {
@@ -1410,7 +1411,7 @@ foreach $line (Net::SNMP::oid_lex_sort(keys(%{$phydrv_data_in}))) {
                 $phd_nagios_status = code_to_nagiosstatus(\%PHYDRV_CODES,$code,$phd_nagios_status);
                 # optionally check rate of rebuild
                 if (defined($opt_extrainfo) && defined($phydrv_rebuildstats_tableoid) &&
-                    defined($PHYDRV_CODES{$code}) && $PHYDRV_CODES{$code}[0] eq 'rebuild')) {
+                    defined($PHYDRV_CODES{$code}) && $PHYDRV_CODES{$code}[0] eq 'rebuild') {
                          my $eoid = $phydrv_rebuildstats_tableoid.'.'.$line;
                          if (!defined($opt_optimize)) {
                                 $debug_time{'snmpretrieve_rebuild_'.$phydrv_id}=time() if $opt_debugtime;
