@@ -320,7 +320,7 @@
 #   }
 #   define service{
 #        use                             std-switch-service
-#     RufioRufio   servicegroups                   snmp,netstatistics
+#        servicegroups                   snmp,netstatistics
 #        hostgroup_name                  alteon184
 #        service_description             Alteon Gigabit Port 1
 #        check_command                   check_snmp_network_interface_alteon!"257"!0,0!0,0
@@ -703,7 +703,7 @@ my $o_perfp=            undef;  # output performance data in % of max speed (-y)
 my $o_perfr=            undef;  # output performance data in bits/s or Bytes/s (-Y)
 my $o_perfo=            undef;  # output performance data in octets (-Z)
 my $o_intspeed=         undef;  # include speed in performance output (-S), specify speed
-my $o_traffavg=		undef;   # New v2.4 option that allows to keep track of average
+my $o_traffavg=		 undef;  # New v2.4 option that allows to keep track of average
 				 # traffic (50 percentile) over longer period and to set
 				 # threshold based on deviation from this average
 
@@ -821,7 +821,7 @@ sub print_usage {
 
 sub isnnum { # Return true if arg is not a number
   my $num = shift;
-#   if ( $num =~ /^(\d+\.?\d*)|(^\.\d+)$/ ) { return 0 ;}
+  if ( $num =~ /^(\d+\.?\d*)|(^\.\d+)$/ ) { return 0 ;}
   return 1;
 }
 
@@ -832,7 +832,7 @@ sub ascii_to_hex { # Convert each ASCII character to a two-digit hex number [WL]
 
 sub help {
    print "\nNetwork Interfaces Monitoring Plugin for Nagios (check_netint/check_snmp_netint) v. ",$Version,"\n";
-   print "GPL 2.0 or 3.0 licence, (c)2004-2007 Patrick Proy, (c)2007-2013 William Leibzon\n";
+   print "GPL 2.0 licence (c) 2004-2007 Patrick Proy, (c) 2007-2013 William Leibzon\n";
    print "Please see documentation for a full list of authors and contributors\n\n";
    print_usage();
    print <<EOT;
@@ -916,12 +916,12 @@ Threshold Checks and Performance Data options:
      unit depends on B,M,G,u options
    error_in/out and discard_in/out thresholds require -q
    avg% in/out requires -A (see below) and activates only if there are enough samples
--A, --avgtraffic[=minsamples,navg]
-   Calculate average of navg sample results of traffic to get total 50-percentle average.
-   If navg is not specified, it defaults to 288 which is 1 day for 5-minute check interval.
-   When there are enough data (minsamples, 144 is default) this enables alert based on 
-   amount of traffic as as percent of avg, specified after '/' in -w and -c. This
-   threshold overrides one before / when enabled. Good valies here are 50%, 100% or 200%.
+-A, --avgtraffic[=timerange_minutes,alertstart_minutes]
+   Calculate average 50-percentile traffic over long period. Timerange is normal
+   timeperiod over which to average - default is 1440 minutes = 1 day. When there
+   are enough data (alertstart - 720 minutes is default) this enables alert based
+   on  amount of traffic as as percent of avg, specified after '/' in -w and -c
+   which overrides one before / when enabled (good valies there are 50%, 100% or 200%)
 -z, --zerothresholds
    if warning and/or critical thresholds are not specified, assume they are 0
    i.e. do not check thresholds, but still give input/ouput bandwidth for graphing
@@ -945,14 +945,16 @@ Options for saving results of previous checks to calculate Traffic & Utilization
    at least couple sets allows for more realistic and less 'bursty' results
    but nagios has buffer limits so very large output of performance data
    would not be kept.
--d, --delta=seconds
+-d, --delta=seconds_avg|min_seconds,max_seconds[,WARN]
    Default: 300 seconds = 5 minutes
-   Expected time between checks in seconds. Used for making sure traffic
-   can be calculated properly. If plugin receives is run more often than
-   0.75 of specified value, it'll not use results but keep previous data
-   for later check. If it is run and receives results more than 4 times
-   later then this value, it'll discard all previous performance data
-   and start calculation again next time it is run.
+   Specifies expected time between plugin runs. If only one number is specified
+   it is the expected avarage. If two numbers, the first is minimum acceptable
+   time between checks and 2nd is largest accepable time, after that plugin will
+   discard previous results. If only one numbers then miniimum is 0.75*avg
+   where avg is speified number. Max is then 4x specified avg number.
+   If this ends with 'WARN' then plugin will give a warning in case their
+   plugin is re-run too slow or too fast and it so it can't use resuts based
+   on specified min and max vaues.
 -F, --filestore[=<filename>|<directory>]
    When you use -P option that causes plugin to use previous performance data 
    that is passed as an argument to plugin to calculate in/out bandwidth
@@ -1395,6 +1397,9 @@ sub check_options {
 	    $check_speed = 0; # since we specified speed here, we don't need to check it
 	}
     }
+    # average traffic calculations
+    if (defined($o_traffavg) && $o_avgtraffic =~ /^(\d+)/) {
+	
 }
 
 # new function from code that checks if interface name matches name given with -n option
@@ -1405,6 +1410,7 @@ sub int_name_match {
     # test by regexp or exact match
     return ($name eq $o_descr) if defined($o_noreg);
     return ($name =~ /$o_descr/);
+}
 
 # new function that cleans interface name as it may appear in SNMP into what we use
 sub clean_int_name {
@@ -1791,8 +1797,8 @@ sub getdata_localhost {
    }
 }
 
-# code that retrieves data by SNMP and populates interfaces array is now in this function
-# instead of directly part of being part of main code section below
+# code that retrieves data by SNMP and populates interfaces array is now here
+# instead of being directly part of "main" section of code 
 sub getdata_snmp {
    # global arrays of interface data used used for snmp retrieval
    my $session = undef;
