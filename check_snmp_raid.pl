@@ -461,7 +461,7 @@ sub set_oids {
     $phydrv_controller_tableoid = $baseoid . ".4.1.4.2.1.2.1.22";  # sasraid drive to controller id
     $phydrv_channel_tableoid = $baseoid . ".4.1.4.2.1.2.1.18";     # sasraid drive to enclosure/channel id
     $phydrv_devid_tableoid = $baseoid . ".4.1.4.2.1.2.1.2";        # sasraid drive to device id
-    $phydrv_lunid_tableoid = $baseoid . ".4.1.5.4.1.1";            # sasraid drive to lun id
+    $phydrv_lunid_tableoid = $baseoid . ".4.1.4.2.1.2.1.1";            # sasraid drive to lun id
     $phydrv_count_oid = $baseoid . ".4.1.4.1.2.1.21";              # pdPresentCount
     $phydrv_goodcount_oid = $baseoid . ".4.1.4.1.2.1.22";          # pdDiskPresentCount
     $phydrv_badcount_oid = $baseoid . ".4.1.4.1.2.1.23";           # pdDiskPredFailureCount
@@ -1012,6 +1012,11 @@ sub check_options {
         usage("Invalid controller type specified: $opt_cardtype");
      }
   }
+  # make sure gooddrive alert threshold is set incase we use sasraid and multiple controllers option.
+  if (!defined($opt_gooddrives) && $opt_cardtype eq 'sasraid' && defined($opt_multcontrollers)) {
+  	usage("sasraid is used with multiple controllers option, must specify good drive alert threshold");
+  }
+  
   # if baseoid is specified as a parameter, set it first. otherwise its set by set_oids
   $baseoid = $opt_baseoid if $opt_baseoid;
   # set baseoid and and all other oids for plugin execution
@@ -1036,7 +1041,12 @@ sub check_options {
   
   # set label
   $label = $opt_label if defined($opt_label) && $opt_label;
-
+  
+  # optimize option
+  if (defined($opt_optimize)) {
+  	$o_bulksnmp = '';
+  }
+  
   # bulksnmp option
   if (defined($o_bulksnmp)) {
       if ($o_bulksnmp eq '' || $o_bulksnmp eq 'optimize') {
@@ -1284,7 +1294,7 @@ my ($phydrv_vendor_in, $phydrv_product_in, $battery_data_in) = (undef,undef,unde
 
 $session = create_snmp_session();
 $do_bulk_snmp =1 if defined($o_bulksnmp) && ($o_bulksnmp eq 'on' || $o_bulksnmp eq 'optimize');
-$do_bulk_snmp =1 if defined($opt_multcontrollers) && (!defined($o_bulksnmp || $o_bulksnp ne 'off');
+$do_bulk_snmp =1 if defined($opt_multcontrollers) && (!defined($o_bulksnmp) || $o_bulksnmp ne 'off');
 set_snmp_window($session,$do_bulk_snmp);   
 $do_bulk_snmp =0 if !defined($o_bulksnmp) || $o_bulksnmp eq 'off' || $o_bulksnmp eq 'optimize';
 
@@ -1300,11 +1310,11 @@ if ($cardtype eq 'sasraid' && defined($opt_gooddrives)) {
 
 # check status of logical disk drive status - this applies to all card types
 # allow this to not be found for mptfusion cards, as they may have drives which aren't part of any array
-$logdrv_data_in = snnmp_get_table($session,$logdrv_status_tableoid,
+$logdrv_data_in = snmp_get_table($session,$logdrv_status_tableoid,
                     "logical_disk_drives_status",($cardtype eq 'mptfusion'));
 
 # get physical disk drive status - all card types
-$phydrv_data_in = snnmp_get_table($session,$phydrv_status_tableoid, "physical_drives_status");
+$phydrv_data_in = snmp_get_table($session,$phydrv_status_tableoid, "physical_drives_status");
 
 # get extra data tables for -i option
 if (defined($opt_extrainfo)) {
