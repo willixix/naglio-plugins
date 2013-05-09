@@ -1172,9 +1172,11 @@ sub set_snmp_window {
 }
 
 # function that does snmp get request for a list of OIDs
-# 1st argument is session, 2nd is ref to list of OIDs,
+# 1st argument is session
+# 2nd is ref to list of OIDs
 # 3rd is optional text for error & debug info
 # 4th argument is optional hash of array to be filled with results
+# 5th argument to enable to disable processing this with bulk snmp if possible
 sub snmp_get_request {
   my ($snmpsession, $oids_ref, $table_name, $results, $do_bulk_snmp) = @_;
   my $result = undef;
@@ -1225,7 +1227,12 @@ sub snmp_get_request {
   return $result;
 }
 
-# does snmp get_table request and cheks if we got an error
+# this function does snmp get_table request and chekcs if we got an error
+# 1st argument is session
+# 2nd is an OID of the table to get
+# 3rd is optional text for error & debug info
+# 4th is optional, if it is present and set to 1 an error is not issued
+#                  if the table is not available
 sub snmp_get_table {
   my ($snmpsession, $oid, $table_name, $ignore_error) = @_;
   my $result = undef;

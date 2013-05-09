@@ -580,6 +580,7 @@
 #
 #    M. Berger
 #    Yannick Charton
+#    Makina Corpus
 #    Steve Hanselman
 #    Tristan Horn
 #    J. Jungmann
@@ -991,7 +992,7 @@ SNMP Authentication options and options valid only with SNMP:
    Max-size of the SNMP message. Usefull in case of too long responses.
    Range 484 - 65535. Be carefull with network filters.
    Default is usually 1472,1452,1460 or 1440 depending on your system.
-   If bulk_snmp_queries are used (see below), its reset to 5 times default.
+   If bulk_snmp_queries are used (see below), its reset to 15 times default.
 -N, --descrname_oid=OID
    SNMP OID of the description table (optional for non-standard equipment)
 -O, --optionaltext_oid=OID
@@ -1127,7 +1128,7 @@ sub check_options {
 	'a'	=> \$o_admin,		'admin'		=> \$o_admin,
 	'D'     => \$o_dormant,		'dormant_ok' => \$o_dormant,
 	'dormant' => \$o_dormant, 	# to be depreciated
-        'I'     => \$o_ignorestatus,    'ignorestatus'  => \$o_ignorestatus,
+        'I'     => \$o_ignorestatus,   'ignorestatus'  => \$o_ignorestatus,
 	'K'	=> \$o_admindown_ok,	'admindown_ok'	=> \$o_admindown_ok,
 	'notfound_critical' = \$o_notfound_crit,
 	'r'	=> \$o_noreg,		'noregexp'	=> \$o_noreg,
@@ -1151,7 +1152,7 @@ sub check_options {
         'G'   	=> \$o_gig,      	'giga'   	=> \$o_gig,
         'u'   	=> \$o_prct,      	'prct'   	=> \$o_prct,
 	'o:i'   => \$o_octetlength,    'octetlength:i' => \$o_octetlength,
-	'label_intstatus' => \$o_islabel,
+        'label_intstatus' => \$o_islabel,
 	'label' => \$o_islabel, 	# to be depreciated
         'd:i'   => \$o_delta,          'delta:i'     	=> \$o_delta,
 	'N:s'	=> \$o_descroid,	'descrname_oid:s' => \$o_descroid,
@@ -1226,7 +1227,7 @@ sub check_options {
 		$o_bulksnmp = 'optimize';
 	    }
 	    elsif ($o_bulksnmp ne 'std' && $o_bulksnmp ne 'on' && $o_bulksnmp ne 'off') {
-		print "bulksnmp option $o_bulsnmp is not known, valid are: optimize|std|on|off\n";
+		print "bulksnmp option $o_bulksnmp is not known, valid are: optimize|std|on|off\n";
 		print_usage();
 		exit $ERRORS{"UNKNOWN"};
 	    }
@@ -1237,7 +1238,7 @@ sub check_options {
 	    }
 	    else {
 		$o_bulksnmp='std';
-	    ]
+	    }
 	}
     }
     else {
@@ -1492,22 +1493,37 @@ sub create_snmp_session {
 sub set_snmp_window {
   my ($session, $is_bulk) = @_;
   if (defined($session) && (defined($o_octetlength) || (defined($is_bulk) && $is_bulk))) {
-	my $oct_resultat=undef;
-	my $oct_test=$session->max_msg_size();
-	verb(" actual max octets:: $oct_test");
-	if (defined($o_octetlength)) {
-	    $oct_resultat = $session->max_msg_size($o_octetlength);
-	}
-	else { # for bulksnmp we set message size to 5 times its default
-	    $oct_resultat = $session->max_msg_size($oct_test * 5);
-	}
-	if (!defined($oct_resultat)) {
-		 printf("ERROR: Session settings : %s.\n", $session->error);
-		 $session->close;
-		 exit $ERRORS{"UNKNOWN"};
-	}
-	$oct_test= $session->max_msg_size();
-	verb(" new max octets:: $oct_test");
+     my $oct_resultat=undef;
+     my $oct_test=$session->max_msg_size();
+     if (!defined($oct_test)) {
+        printf("ERROR getting SNMP window msg size : %s.\n", $session->error);
+        $session->close;
+        exit $ERRORS{"UNKNOWN"};
+     }
+     verb(" actual max octets:: $oct_test");
+     if (defined($o_octetlength)) {
+        $oct_resultat = $session->max_msg_size($o_octetlength);
+     }
+     else if (defined($is_bulk) && $is_bulk) { # for bulksnmp we set message size to 15 times its default
+	$oct_test = $oct_test * 15;
+	$oct_test = 16384 if $oct_test < 16384;
+	$oct_resultat = $session->max_msg_size($oct_test);
+     }
+     else {
+	$oct_resultat = $oct_test;
+     }
+     if (!defined($oct_resultat)) {
+        printf("ERROR setting SNMP window msg size : %s.\n", $session->error);
+        $session->close;
+        exit $ERRORS{"UNKNOWN"};
+     }
+     $oct_test= $session->max_msg_size();
+     if (!defined($oct_test)) {
+        printf("ERROR getting SNMP window msg size : %s.\n", $session->error);
+        $session->close;
+        exit $ERRORS{"UNKNOWN"};
+     }
+     verb(" new max octets:: $oct_test");
   }
 }
 
@@ -1561,22 +1577,23 @@ sub snmp_get_request {
 
 # does snmp get_table request and cheks if we got an error
 sub snmp_get_table {
-  my ($session, $oid, $table_name) = @_;
+  my ($session, $oid, $table_name, $igore_error) = @_;
   my $result = undef;
 
   verb("Doing snmp get_table request on ".$table_name." OID: ".$oid);
   if ($o_bulksnmp eq 'off') {
       $result = $session->get_table(
-		-baseoid => $oid,
-		-maxrepetitions => 1
+           -baseoid => $oid,
+           -maxrepetitions => 1
       );
    }
    else {
       $result = $session->get_table(
-		-baseoid => $oid,
+           -baseoid => $oid,
       );
    }
-   if (!defined($result)) {
+   if ((!defined($ignore_error) || !$ignore_error) && !defined($result)) {
+      $table_name  = $oid if !defined($table_name);
       printf("SNMP ERROR getting table %s : %s.\n", $table_name, $session->error); 
       $session->close;
       exit $ERRORS{"UNKNOWN"};
