@@ -1277,7 +1277,9 @@ my ($phydrv_vendor_in, $phydrv_product_in, $battery_data_in) = (undef,undef,unde
 
 $session = create_snmp_session();
 $do_bulk_snmp =1 if defined($o_bulksnmp) && ($o_bulksnmp eq 'on' || $o_bulksnmp eq 'optimize');
+$do_bulk_snmp =1 if defined($opt_multcontrollers) && (!defined($o_bulksnmp || $o_bulksnp ne 'off');
 set_snmp_window($session,$do_bulk_snmp);   
+$do_bulk_snmp =0 if !defined($o_bulksnmp) || $o_bulksnmp eq 'off' || $o_bulksnmp eq 'optimize';
 
 # fetch snmp data, first optional readfail & writefail values for megaraid and good/bad drives count for sasraid
 if ($cardtype eq 'megaraid' && defined($opt_drverrors)) {
