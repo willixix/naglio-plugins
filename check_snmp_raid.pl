@@ -3,8 +3,8 @@
 # ============================== SUMMARY =====================================
 #
 # Program : check_snmp_raid / check_sasraid_megaraid / check_megaraid
-# Version : 2.3a2
-# Date    : May 11, 2013
+# Version : 2.3
+# Date    : June 20, 2013
 # Author  : William Leibzon - william@leibzon.org
 # Copyright: (C) 2006-2013 William Leibzon
 # Summary : This is a nagios plugin to monitor Raid controller cards with SNMP
@@ -223,7 +223,7 @@
 #           - reordering of output: # of controllders, drives, batteries first, then new additional controller status
 #             such as 'powersupply is ok' and last model & tasks info which are now labeled as 'tasks []' before data
 #        * Code contributions for this release: Michael Cook, Stanislav German-Evtushenko, William Leibzon *
-#   23. [2.3 - June ??, 2013] The following are additions in this version:
+#   23. [2.3 - June 20, 2013] The following are additions in this version:
 #        a. Applied patch by Erez Zarum to properly support multiple sasraid controllers
 #         . added option -m to enable retrieving extra tabbles for multi-controller support
 #        b .Imported snmp_get_table(), snmp_get_request(), set_snmp_window() functions from check_netint 2.4b3
@@ -826,7 +826,7 @@ sub help {
         print "  -O, --oid <base oid>\n";
         print "    Base OID is normally set based on your controller and you almost never need to change it\n";
         print "    unless you custom-set it different for your card (the only case I know is when you have both\n";
-	print "    percsnmp and sassnmp cards since normally each would want to use same megarad OID)\n";
+        print "    percsnmp and sassnmp cards since normally each would want to use same megarad OID)\n";
         print "  -s, --snmp_version 1 | 2 | 2c | 3\n";
         print "    Version of SNMP protocol to use (default is 1 if -C and 3 if -l specified)\n";
         print "  -p, --port <port>\n";
@@ -858,8 +858,8 @@ sub help {
         print "      'std' means bulk queries to get table with snmp v2 and v3 but not get requests\n";
         print "      'optimize' means bulk queries for table and for get requests of > 30 OIDs\n";
         print "    Default setting (if --bulk_snmp_queries is not specified) is 'std' without -o\n";
-        print "    and 'optimize' if -o options are specified. If you specify --bulk_snmp_queries\n";
-        print "    without text option after =, this enables 'optimize' even if -o are not used.\n";
+        print "    and 'optimize' if -o option is specified. If you specify --bulk_snmp_queries\n";
+        print "    without text option after =, this enables 'optimize' even if -o is not used.\n";
         print "\nDebug Options:\n";
         print "  --debug[=FILENAME] | --verbose[=FILENAME]\n";
         print "    Enables verbose debug output printing exactly what data was retrieved from SNMP\n";
