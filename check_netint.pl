@@ -516,15 +516,12 @@
 #		       Due to this plugin now require Text::ParseWords perl library.
 #		    4) List of contributors created as a separate header section below.
 #
-# [2.4] alpha/beta  This version will support getting data from network interfaces on
-#		    the local machine rather than just by SNMP. It will also support
-#		    gettind data on average traffic (50-percentalile) and being able
-#		    to specify threshold based on deviation from this average. There
-#		    will be several alpha and beta versions before official 2.4 release.
-#
-# Specific info on each alpha/beta release will be removed in the future and only
-# summary of below will appear in documentation on features and updated in 2.4 release
-#
+# [2.4] alpha/beta  This are all development/alpha/beta releases. After completion of
+#                   development the new version of this plugin will be released as 3.0.
+#                   New features being added are support for getting data from network
+#                   interfaces on local machine rather than just by SNMP. Also support
+#		    getting data on average traffic (50-percentalile) and being able
+#		    to specify threshold based on deviation from this average. 
 # 2.4a1 - 07/07/12 - Implemented in this release:
 #		    1) The plugin has been renamed "check_netint" from "check_snmp_netint".
 #		       It can now check interfaces on a local Linux system and in the
@@ -572,6 +569,7 @@
 #                    when interface is not found (this is for monitoring ppp and virtual interfaces)
 # 2.4b3 - 04/04/13 - Updated help text to not start line with "uses" which confuses rpmbuild
 #                    (issue reported by Roland Kool)
+# 2.4b4 - 06/25/13 - Added --juniper option which enables non-standards OIDs from comment by zen on nagiosexhange
 #
 # ============================ LIST OF CONTRIBUTORS ===============================
 #
@@ -657,6 +655,14 @@ my %cisco_port_linkfaultstatus=(1=>'UP',2=>'nearEndFault',3=>'nearEndConfigFail'
 my %cisco_port_operstatus=(0=>'operstatus:unknown',1=>'operstatus:other',2=>'operstatus:ok',3=>'operstatus:minorFault',4=>'operstatus:majorFault');
 my %cisco_port_addoperstatus=(0=>'other',1=>'connected',2=>'standby',3=>'faulty',4=>'notConnected',5=>'inactive',6=>'shutdown',7=>'dripDis',8=>'disable',9=>'monitor',10=>'errdisable',11=>'linkFaulty',12=>'onHook',13=>'offHook',14=>'reflector');
 
+# Juniper Tables as reported zan as a comment on nagios exchange page for this plugin. Enable these with --juniper
+my $juniper_descr_table = '1.3.6.1.4.1.3224.9.1.1.2';
+my $juniper_oper_table = '1.3.6.1.4.1.3224.9.1.1.5';
+my $juniper_in_octet_table = '1.3.6.1.4.1.3224.9.3.1.3';
+my $juniper_out_octet_table = '1.3.6.1.4.1.3224.9.3.1.5';
+my %juniper_status=('UP'=>1,'DOWN'=>0,'TESTING'=>3,'UNKNOWN'=>4,'DORMANT'=>5,'NotPresent'=>6,'lowerLayerDown'=>7);
+my %juniper_status_print=(1=>'UP',0=>'DOWN',3=>'TESTING',4=>'UNKNOWN',5=>'DORMANT',6=>'NotPresent',7=>'lowerLayerDown');
+
 # STP Information (only tested with Cisco but should work with other vendor switches too)
 my $stp_dot1dbase_ifindex_map='1.3.6.1.2.1.17.1.4.1.2';	   # map from dot1base port table to SNMP ifindex table
 my $stp_dot1dbase_portstate='1.3.6.1.2.1.17.2.15.1.3.';	   # stp port states
@@ -683,19 +689,21 @@ my $o_notfound_crit=	undef;	 # return critical if interface is not found
 # Speed/error checks
 my $o_warn_opt=         undef;  # warning options
 my $o_crit_opt=         undef;  # critical options
-my @o_warn_min=         undef;  # warning levels of perfcheck
-my @o_warn_max=         undef;  # warning levels of perfcheck
+my @o_warn_min=         undef;  # warning levels of perfcheck (only used for min-max range)
+my @o_warn_max=         undef;  # warning levels of perfcheck (for mix-max or just number)
+my @o_warn_extra=       undef;  # warning levels of perfcheck (for min-max/extra)
 my @o_crit_min=         undef;  # critical levels of perfcheck
 my @o_crit_max=         undef;  # critical levels of perfcheck
-my $o_checkperf=	undef;	 # checks in/out/err/disc values
-my $o_delta=		300;	 # delta of time of perfcheck (default 5min)
-my $o_ext_checkperf=	undef;   # extended perf checks (+error+discard)
+my @o_crit_extra=       undef;  # critical levels of perfcheck
+my $o_checkperf=        undef;	 # checks in/out/err/disc values
+my $o_delta=              300;	 # delta of time of perfcheck (default 5min)
+my $o_ext_checkperf=	 undef;  # extended perf checks (+error+discard)
 my $o_highperf=         undef;  # Use 64 bits counters
 my $o_meg=              undef;  # output in MBytes or Mbits (-M)
 my $o_gig=              undef;  # output in GBytes or Gbits (-G)
 my $o_prct=             undef;  # output in % of max speed  (-u)
-my $o_kbits=	        undef;	 # Warn and critical in Kbits instead of KBytes
-my $o_zerothresholds=	undef;   # If warn/crit are not specified, assume its 0
+my $o_kbits=            undef;	 # Warn and critical in Kbits instead of KBytes
+my $o_zerothresholds=   undef;  # If warn/crit are not specified, assume its 0
 
 # Performance data options
 my $o_perf=             undef;  # Output performance data
@@ -707,6 +715,8 @@ my $o_intspeed=         undef;  # include speed in performance output (-S), spec
 my $o_traffavg=		 undef;  # New v2.4 option that allows to keep track of average
 				 # traffic (50 percentile) over longer period and to set
 				 # threshold based on deviation from this average
+my $traffavg_timerange=1440;    # Range of time over which to average in minutes
+my $traffavg_alertstart=720;    # How much traffic data is enough in minutes
 
 # WL: These are for previous performance data that nagios can send data to the plugin
 # with $SERVICEPERFDATA$ macro (and $SERVICESAVEDDATA$ for future naios versions).
@@ -728,6 +738,7 @@ my $o_commentoid=	undef;   # comment text oid, kind-of like additional label tex
 my $o_ciscocat=		undef;	 # enable special cisco catos hacks
 my %o_cisco=		();	 # cisco options
 my $o_stp=		undef;	 # stp support option
+my $o_juniper=		undef;	 # juniper options
 
 # Login and other options specific to SNMP
 my $o_port =		161;    # SNMP port
@@ -817,7 +828,7 @@ sub write_file {
 sub p_version { print "check_netint version : $Version\n"; }
 
 sub print_usage {
-    print "Usage: $0 [-V] | [-v [<debugfilename>]] [-t <timeout>] [-I | [-a] [-K] [-i] [-D]] [-n <name in desc_oid> [-r] [-s] [--label_intstatus]] [-f[eyYZ]] [-k[qBMGu] [-S [<intspeed>]] [-w <warn levels> -c <crit levels> [-z] | -z] [-A <navg,minsamples>]  [-F <filename> | -P <previous perf data from nagios \$SERVICEPERFDATA\$>] -T <previous time from nagios \$LASTSERVICECHECK\$>] [--pcount=<hist size in perf>] [-d <delta>] [-H <host> (-C <snmp_community> [-2]) | (-l login -x passwd [-X pass -L <authp>,<privp>)  [-p <port>] [-N <desc table oid>] [-O <comments table OID>] [-o <octet_length>] [--64bits] [-m|-mm] [--cisco=[oper,][addoper,][linkfault,][use_portnames|show_portnames]] [--stp[=<expected stp state>]] [--bulk_snmp_queries=<optimize|std|on|off>]]\n";
+    print "Usage: $0 [-V] | [-v [<debugfilename>]] [-t <timeout>] [-I | [-a] [-K] [-i] [-D]] [-n <name in desc_oid> [-r] [-s] [--label_intstatus]] [-f[eyYZ]] [-k[qBMGu] [-S [<intspeed>]] [-w <warn levels> -c <crit levels> [-z] | -z] [-A <navg,minsamples>]  [-F <filename> | -P <previous perf data from nagios \$SERVICEPERFDATA\$>] -T <previous time from nagios \$LASTSERVICECHECK\$>] [--pcount=<hist size in perf>] [-d <delta>] [-H <host> (-C <snmp_community> [-2]) | (-l login -x passwd [-X pass -L <authp>,<privp>)  [-p <port>] [-N <desc table oid>] [-O <comments table OID>] [-o <octet_length>] [--64bits] [-m|-mm] [--juniper] [--cisco=[oper,][addoper,][linkfault,][use_portnames|show_portnames]] [--stp[=<expected stp state>]] [--bulk_snmp_queries=<optimize|std|on|off>]]\n";
 }
 
 sub isnnum { # Return true if arg is not a number
@@ -909,24 +920,26 @@ Threshold Checks and Performance Data options:
    -u : Make the warning and critical levels in % of reported max interface speed.
 -w, --warning=input[/avg%],output[/avg%][,error_in,error_out,discard_in,discard_out]
    warning level for input / output bandwidth (0 for no warning)
-     unit depends on B,M,G,u options
+     unit depends on B,M,G,u options (see above)
+     range can be specified as min-max
    error_in/out and discard_in/out thresholds require -q
    avg% in/out requires -A (see below) and activates only if there are enough samples
 -c, --critical=input[/avg%],output[/avg%][,error_in,error_out,discard_in,discard_out]
    critical level for input / output bandwidth (0 for no critical)
-     unit depends on B,M,G,u options
+     unit depends on B,M,G,u options (see above)
+     range can be specified as min-max
    error_in/out and discard_in/out thresholds require -q
    avg% in/out requires -A (see below) and activates only if there are enough samples
 -A, --avgtraffic[=timerange_minutes,alertstart_minutes]
    Calculate average 50-percentile traffic over long period. Timerange is normal
    timeperiod over which to average - default is 1440 minutes = 1 day. When there
    are enough data (alertstart - 720 minutes is default) this enables alert based
-   on  amount of traffic as as percent of avg, specified after '/' in -w and -c
+   on amount of traffic as percent of avg, specified after '/' in -w and -c
    which overrides one before / when enabled (good valies there are 50%, 100% or 200%)
 -z, --zerothresholds
    if warning and/or critical thresholds are not specified, assume they are 0
    i.e. do not check thresholds, but still give input/ouput bandwidth for graphing
-   This option also prevents tmp files of being written.
+   This option also prevents tmp files from being written.
 
 Options for saving results of previous checks to calculate Traffic & Utilization:
 
@@ -1030,6 +1043,9 @@ SNMP Authentication options and options valid only with SNMP:
       this does however restrict to only cisco module ports (ifindex maybe larger
       and include also non-port interfaces such as vlan).
    3) Optional "show_portname" causes port names to go as comments (do not use with -O)
+--juniper
+   This enables non-standard snmp OIDs used by some Juniper devices. The non-standard
+   tables are for operational status, port desription, in-octets and out-octets.
 --stp[=disabled|blocking|listening|learning|forwarding|broken]
    This enables reporting of STP (Spanning Tree Protocol) switch ports states.
    If STP port state changes then plugin for period of time (default 15 minutes)
@@ -1112,7 +1128,8 @@ sub prev_perf {
 sub check_options {
     Getopt::Long::Configure ("bundling");
 	GetOptions(
-   	'v:s'	=> \$o_verb,		'verbose:s' => \$o_verb, "debug:s" => \$o_verb,
+   	'v:s'	=> \$o_verb,		'verbose:s' => \$o_verb, 
+   	'debug:s' => \$o_verb,
         'h'     => \$o_help,    	'help'        	=> \$o_help,
         'H:s'   => \$o_host,		'hostname:s'	=> \$o_host,
         'p:i'   => \$o_port,   	'port:i'	=> \$o_port,
@@ -1130,7 +1147,7 @@ sub check_options {
 	'dormant' => \$o_dormant, 	# to be depreciated
         'I'     => \$o_ignorestatus,   'ignorestatus'  => \$o_ignorestatus,
 	'K'	=> \$o_admindown_ok,	'admindown_ok'	=> \$o_admindown_ok,
-	'notfound_critical' = \$o_notfound_crit,
+	'notfound_critical' => \$o_notfound_crit,
 	'r'	=> \$o_noreg,		'noregexp'	=> \$o_noreg,
 	'V'	=> \$o_version,		'version'	=> \$o_version,
         'f'     => \$o_perf,           'perfparse'     => \$o_perf,
@@ -1160,11 +1177,12 @@ sub check_options {
 	'P:s'	=> \$o_prevperf,	'prev_perfdata:s' => \$o_prevperf,
 	'T:s'   => \$o_prevtime,       'prev_checktime:s'=> \$o_prevtime,
 	'pcount:i' => \$o_pcount,
-	'A:s'	=> $o_traffavg,		'avgtraffic:s' => \$o_traffavg,
+	'A:s'	=> \$o_traffavg,	'avgtraffic:s' => \$o_traffavg,
 	'F:s'   => \$o_filestore,      'filestore:s' => \$o_filestore,
 	'm'	=> \@o_minsnmp,		'minimize_queries' => \$o_minsnmp,
 	'minimum_queries:s' => \$o_maxminsnmp, 'bulk_snmp_queries:s' => \$o_bulksnmp,
-	'cisco:s' => \$o_ciscocat,	'stp:s' =>	\$o_stp,
+	'cisco:s' => \$o_ciscocat,	'juniper' => \$o_juniper,
+	'stp:s' => \$o_stp,
 	'nagios_with_saveddata' => \$o_nagios_saveddata,
     );
     if (defined ($o_help) ) { help(); exit $ERRORS{"UNKNOWN"}};
@@ -1233,7 +1251,7 @@ sub check_options {
 	    }
 	}
 	else {
-	    if ($o_minsnmp || $o_maxminsmp) {
+	    if ($o_minsnmp || $o_maxminsnmp) {
 		$o_bulksnmp='optimize';
 	    }
 	    else {
@@ -1310,6 +1328,13 @@ sub check_options {
 	print "Add '-z' or specify 2 critical levels for bandwidth checks \n"; print_usage(); exit $ERRORS{"UNKNOWN"};
       }
       for (my $i=0;$i<=$#o_warn;$i++) {
+        if ($o_warn[$i] =~ /(.*)\/(.*)/) {
+	  $o_warn[$i] = $1;
+	  $o_warn_extra[$i] = $2;
+        }
+        else {
+	  $o_warn_extra[$i] = undef;
+	}
         if ($o_warn[$i] =~ /^\d+$/) {
           $o_warn_max[$i] = $o_warn[$i];
         } elsif ($o_warn[$i] =~ /^(\d+)?-(\d+)?$/) {
@@ -1320,6 +1345,13 @@ sub check_options {
         }
       }
       for (my $i=0;$i<=$#o_crit;$i++) {
+        if ($o_crit[$i] =~ /(.*)\/(.*)/) {
+	  $o_crit[$i] = $1;
+	  $o_crit_extra[$i] = $2;
+        }
+        else {
+	  $o_crit_extra[$i] = undef;
+	}
         if ($o_crit[$i] =~ /^\d+$/) {
           $o_crit_max[$i] = $o_crit[$i];
         } elsif ($o_crit[$i] =~ /^(\d+)?-(\d+)?$/) {
@@ -1343,6 +1375,15 @@ sub check_options {
 	print "-M -G and -u options are exclusives\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
       }
     }
+    # juniper special tables
+    if (defined($o_juniper)) {
+	$descr_table = $juniper_descr_table;
+	$oper_table = $juniper_oper_table;
+	$in_octet_table = $juniper_in_octet_table;
+	$out_octet_table = $juniper_out_octet_table;
+	%status = %juniper_status;
+	%status_print = %status_print;
+    }
     # cisco hacks to use or show user-specified port names (WL)
     if (defined($o_ciscocat)) {
 	if (!defined($o_host)) {
@@ -1361,6 +1402,7 @@ sub check_options {
             if (defined($o_commentoid)) {
                 print "Can not use -O when --cisco=show_portnames option is used\n"; print_usage(); exit $ERRORS{'UNKNOWN'};
             }
+            # cisco hacks to use or show user-specified port names (WL)
             else {
 		$o_commentoid = $cisco_port_name_table;
 	    }
@@ -1398,9 +1440,16 @@ sub check_options {
 	    $check_speed = 0; # since we specified speed here, we don't need to check it
 	}
     }
-    # average traffic calculations
-    if (defined($o_traffavg) && $o_avgtraffic =~ /^(\d+)/) {
-	
+    # average traffic calculations option
+    if (defined($o_traffavg) && $o_traffavg =~ /(\d+)/) {
+      if ($o_traffavg =~ /(\d+),(\d+)/) {
+	  $traffavg_timerange=$1;
+	  $traffavg_alertstart=$2;
+      }
+      else {
+	  print "Must specify both time-range and alert-start for -O option\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
+      }
+    }
 }
 
 # new function from code that checks if interface name matches name given with -n option
@@ -1504,7 +1553,7 @@ sub set_snmp_window {
      if (defined($o_octetlength)) {
         $oct_resultat = $session->max_msg_size($o_octetlength);
      }
-     else if (defined($is_bulk) && $is_bulk) { # for bulksnmp we set message size to 15 times its default
+     elsif (defined($is_bulk) && $is_bulk) { # for bulksnmp we set message size to 15 times its default
 	$oct_test = $oct_test * 15;
 	$oct_test = 16384 if $oct_test < 16384;
 	$oct_resultat = $session->max_msg_size($oct_test);
@@ -1528,41 +1577,47 @@ sub set_snmp_window {
 }
 
 # function that does snmp get request for a list of OIDs
-# 1st argument is session, 2nd is ref to list of OIDs,
+# 1st argument is session
+# 2nd is ref to list of OIDs
 # 3rd is optional text for error & debug info
 # 4th argument is optional hash of array to be filled with results
+# 5th argument to enable to disable processing this with bulk snmp if possible
 sub snmp_get_request {
-  my ($session, $oids_ref, $table_name, $results, $do_bulk_snmp) = @_;
+  my ($snmpsession, $oids_ref, $table_name, $results, $bulk_snmp_on) = @_;
   my $result = undef;
 
+  if (!defined($snmpsession)) {
+      verb("call to snmp_get_request with snmpsession not defined");
+      return undef;
+  }
   verb("Doing snmp request on ".$table_name." OIDs: ".join(' ',@{$oids_ref}));
-  if (defined($do_bulk_snmp) && $do_bulk_snmp==1 && $snmp_session_v > 1) {
+  if (defined($bulk_snmp_on) && $bulk_snmp_on==1 && $snmp_session_v > 1) {
     my @oids_bulk=();
     my ($oid_part1,$oid_part2);
     foreach(@{$oids_ref}) {
-	if (/^(.*)\.(\d+)$/) {
-		$oid_part1=$1;
-		$oid_part2=$2;
-		$oid_part2-- if $oid_part2 ne '0';
-		$oid_part1.='.'.$oid_part2;
-		push @oids_bulk,$oid_part1;
-	}
+       if (/^(.*)\.(\d+)$/) {
+           $oid_part1=$1;
+           $oid_part2=$2;
+           $oid_part2-- if $oid_part2 ne '0';
+           $oid_part1.='.'.$oid_part2;
+           push @oids_bulk,$oid_part1;
+       }
     }
     verb("Converted to bulk request on OIDs: ".join(' ',@oids_bulk));
-    $result = $session->get_bulk_request(
+    $result = $snmpsession->get_bulk_request(
       -nonrepeaters => scalar(@oids_bulk),
       -maxrepetitions => 0,
       -varbindlist => \@oids_bulk,
     );
   }
   else {
-    $result = $session->get_request(
+    $result = $snmpsession->get_request(
       -varbindlist => $oids_ref
     );
   }
   if (!defined($result)) {
-    printf("SNMP ERROR getting %s : %s.\n", $table_name, $session->error);
-    $session->close;
+    printf("SNMP ERROR getting %s : %s.\n", $table_name, $snmpsession->error);
+    $snmpsession->close;
     exit $ERRORS{"UNKNOWN"};
   }
 
@@ -1575,27 +1630,36 @@ sub snmp_get_request {
   return $result;
 }
 
-# does snmp get_table request and cheks if we got an error
+# this function does snmp get_table request and chekcs if we got an error
+# 1st argument is session
+# 2nd is an OID of the table to get
+# 3rd is optional text for error & debug info
+# 4th is optional, if it is present and set to 1 an error is not issued
+#                  if the table is not available
 sub snmp_get_table {
-  my ($session, $oid, $table_name, $igore_error) = @_;
+  my ($snmpsession, $oid, $table_name, $ignore_error) = @_;
   my $result = undef;
 
+  if (!defined($snmpsession)) {
+      verb("call to snmp_get_table with snmpsession not defined");
+      return undef;
+  }
   verb("Doing snmp get_table request on ".$table_name." OID: ".$oid);
   if ($o_bulksnmp eq 'off') {
-      $result = $session->get_table(
+      $result = $snmpsession->get_table(
            -baseoid => $oid,
            -maxrepetitions => 1
       );
    }
    else {
-      $result = $session->get_table(
+      $result = $snmpsession->get_table(
            -baseoid => $oid,
       );
    }
    if ((!defined($ignore_error) || !$ignore_error) && !defined($result)) {
-      $table_name  = $oid if !defined($table_name);
-      printf("SNMP ERROR getting table %s : %s.\n", $table_name, $session->error); 
-      $session->close;
+      $table_name = $oid if !defined($table_name);
+      printf("SNMP ERROR getting table %s : %s.\n", $table_name, $snmpsession->error); 
+      $snmpsession->close;
       exit $ERRORS{"UNKNOWN"};
    }
    return $result;
@@ -1843,7 +1907,7 @@ sub getdata_snmp {
    my (@oid_perf,@oid_perf_outoct,@oid_perf_inoct,@oid_perf_inerr,@oid_perf_outerr,@oid_perf_indisc,@oid_perf_outdisc)= (undef,undef,undef,undef,undef,undef,undef);
    my ($result1,$result2,$data1) = (undef,undef,undef);
    my $int_status_extratext="";
-   my $do_bulksnmp=0;	# set to 1 if bulksnmp queries are done
+   my $do_bulk_snmp=0;	# set to 1 if bulksnmp queries are done
 
    if (defined($o_minsnmp) && %prev_perf_data) {
       # load old-style arrays
