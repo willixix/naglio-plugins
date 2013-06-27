@@ -3,8 +3,8 @@
 # =============================== SUMMARY =====================================
 #
 # Program : check_netint.pl or check_snmp_netint.pl
-# Version : 2.4 beta 1
-# Date    : Dec 30, 2012
+# Version : 2.4 beta 5
+# Date    : Jun 30, 2012
 # Maintainer: William Leibzon - william@leibzon.org,
 # Authors : See "CONTRIBUTORS" documentation section
 # Licence : GPL - summary below, full text at http://www.fsf.org/licenses/gpl.txt
@@ -570,6 +570,7 @@
 # 2.4b3 - 04/04/13 - Updated help text to not start line with "uses" which confuses rpmbuild
 #                    (issue reported by Roland Kool)
 # 2.4b4 - 06/25/13 - Added --juniper option which enables non-standards OIDs from comment by zen on nagiosexhange
+# 2.4b5 - 06/27/13 - Adding support for 50-percentile average calculated over long time period
 #
 # ============================ LIST OF CONTRIBUTORS ===============================
 #
@@ -754,7 +755,7 @@ my $o_privpass= 	undef;	# priv password
 
 # Readable names for counters (M. Berger contrib)
 my @countername = ( "in=" , "out=" , "errors-in=" , "errors-out=" , "discard-in=" , "discard-out=" );
-my $checkperf_out_desc;
+my $checkperf_data_desc;
 
 ## Additional global variables
 my %prev_perf_data=();  # array that is populated with previous performance data
@@ -1071,6 +1072,22 @@ sub verb {
 	    }
 	}
     }
+}
+
+# printable string from long number (usually bits or bytes)
+# will auto-convert 2000 to 2k, 2000000 to 2M etc
+sub bitnum2str {
+  my $num=shift;
+  if ($num>1000*1000*1000) {
+    return sprintf("%.1fG",$num/1000/1000/1000);
+  }
+  elsif ($num>1000*1000) {
+    return sprintf("%.1fM",$num/1000/1000);
+  }
+  elsif ($num>1000) {
+    return sprintf("%.1fM",$num/1000);
+  }
+  return $num;
 }
 
 # Load previous performance data
@@ -1449,6 +1466,8 @@ sub check_options {
       else {
 	  print "Must specify both time-range and alert-start for -O option\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
       }
+      $traffavg_timerange=$traffavg_timerange*60; # make it into seconds
+      $traffavg_alertstart=$traffavg_alertstart*60;
     }
 }
 
@@ -1775,7 +1794,7 @@ sub getdata_localhost {
    #};
    # #close(NETSTAT);
 
-   # AIX ('entstat -d ent0' equivalent to ethtool
+   # AIX ('netstat -d ent0' equivalent to ethtool
    # San Solaris (link_speed will return 0 for 10mbit and 1 for 100mbit
    #              link_mode will return 0 for half duplex and 1 for full duplex)
    #              Example: if you want the speed for /dev/hme2, you issue:
@@ -2419,12 +2438,10 @@ my $final_status = 0;
 my $print_out='';
 my $temp_file_name;
 my @prev_values=();
-my @checkperf_out_raw=undef;
-my @checkperf_out=undef;
-my $checkval_out=undef;
-my $checkval_in=undef;
+my @checkperf_data_raw=undef;
+my @checkperf_data=undef;
 my $checkval_tdiff=undef;
-my $usable_data=0;
+my $data_not_usable=0;
 my $n_rows=0;
 my $n_items_check=(defined($o_ext_checkperf))?7:3;
 my $trigger=$timenow - ($o_delta - ($o_delta/4));
@@ -2438,7 +2455,7 @@ my $speed_metric=undef;
 for (my $i=0;$i < $num_int; $i++) {
   $print_out.=", " if ($print_out);
   $perf_out .= " " if ($perf_out);
-  my $usable_data=1; # 0 is OK, 1 means its not OK
+  $data_not_usable=1; # 0 is OK, 1 means its not OK
 
   # Get the status of the current interface
   my $int_status = $ok_val;
@@ -2516,10 +2533,10 @@ for (my $i=0;$i < $num_int; $i++) {
         }
         # First, read entire file
         my @ret_array=read_file($temp_file_name,$n_items_check);
-        $usable_data = shift(@ret_array);
+        $data_not_usable = shift(@ret_array);
         $n_rows = shift(@ret_array);
         if ($n_rows != 0) { @prev_values = @ret_array };
-        verb ("File read returns : $usable_data with $n_rows rows");
+        verb ("File $temp_file_name read : $data_not_usable with $n_rows rows");
     }
     # WL: if one or more sets of previous performance data is available
     #      then put it in prev_values array and use as history data
@@ -2541,7 +2558,7 @@ for (my $i=0;$i < $num_int; $i++) {
 				    prev_perf($descr,'out_error'.$timeref),
 				    prev_perf($descr,'in_discard'.$timeref),
 				    prev_perf($descr,'out_discard'.$timeref) ];
-		# this checks if data is ok and not, this set of values would not be used
+		# this checks if data is ok. If not, this set of values would not be used
 		# and next set put in its place as $jj is not incrimented
 		for (my $k=1;$k<(defined($o_ext_checkperf)?7:3);$k++) {
 			if (!defined($prev_values[$jj][$k]) || $prev_values[$jj][$k] !~ /\d+/) {
@@ -2557,8 +2574,10 @@ for (my $i=0;$i < $num_int; $i++) {
 		}
 	}
 	$n_rows = $jj;
-	if ($jj==0) { $usable_data=1 } #NAK
-	  else { $usable_data=0; } # OK
+	if ($jj==0) { $data_not_usable=1 } #NAK
+	  else { $data_not_usable=0; } # OK
+        $interfaces[$i]{'in_bytes_last'} = prev_perf($descr,'in_octet');
+        $interfaces[$i]{'out_bytes_last'} = prev_perf($descr,'out_octet');
     }
     verb("Previous data array created: $n_rows rows");
 
@@ -2569,16 +2588,36 @@ for (my $i=0;$i < $num_int; $i++) {
 					  $interfaces[$i]{'in_dropped'}, $interfaces[$i]{'out_dropped'} ];
 	$n_rows++;
     }
+    
+    # added in 2.4. use for tavg 50-percentile calculations, but maybe used for more later
+    if (defined(prev_perf($descr,'ptime')) && defined($interfaces[$i]{'in_bytes_last'}) && defined($interfaces[$i]{'out_bytes_last'})) {
+	$interfaces[$i]{'in_bytes_difflast'} = $interfaces[$i]{'in_bytes_last'}-$interfaces[$i]{'in_bytes'};
+	$interfaces[$i]{'out_bytes_difflast'} = $interfaces[$i]{'out_bytes_last'}-$interfaces[$i]{'out_bytes'};
+	$interfaces[$i]{'in_bytes_sec'} = $interfaces[$i]{'in_bytes_difflast'}/($timenow-prev_perf($descr,'ptime'));
+	$interfaces[$i]{'out_bytes_sec'} = $interfaces[$i]{'out_bytes_difflast'}/($timenow-prev_perf($descr,'ptime'));
+    }
+    
+    # Traffic average 50-percentile over long period of time calculations
+    if (defined($o_traffavg) && defined($interfaces[$i]{'in_bytes_sec'}) && defined($interfaces[$i]{'out_bytes_sec'})) {
+	if (defined(prev_perf($descr,'tavg_stime')) && defined(prev_perf($descr,'tavg_in_bytes_sec')) && defined(prev_perf($descr,'tavg_out_bytes_sec'))) {
+	    my $tavg_timeframe = prev_perf($descr,'ptime') - prev_perf($descr,'tavg_stime');
+	    $interfaces[$i]{'tavg_in_bytes_sec'} = (prev_perf($descr,'tavg_in_bytes_sec')*$tavg_timeframe + $interfaces[$i]{'in_bytes_difflast'})/($tavg_timeframe + ($timenow-prev_perf($descr,'ptime')));
+	    $interfaces[$i]{'tavg_out_bytes_sec'} = (prev_perf($descr,'tavg_out_bytes_sec')*$tavg_timeframe + $interfaces[$i]{'out_bytes_difflast'})/($tavg_timeframe + ($timenow-prev_perf($descr,'ptime')));
+	}
+	else {
+	    $interfaces[$i]{'tavg_in_bytes_sec'} = $interfaces[$i]{'in_bytes_sec'};
+	    $interfaces[$i]{'tavg_out_bytes_sec'} = $interfaces[$i]{'out_bytes_sec'};
+	}
+    }
+     
     #make the checks if the file is OK
-    if ($usable_data==0) {
+    if ($data_not_usable==0) {
       my $j;
       my $jj=0;
       my $n=0;
       my $overfl;
-      @checkperf_out=(0,0,0,0,0,0);
-      @checkperf_out_raw=();
-      $checkval_in=undef;
-      $checkval_out=undef;
+      @checkperf_data=(0,0,0,0,0,0);
+      @checkperf_data_raw=();
       $checkval_tdiff=undef;
 
       # check if the counter is back to 0 after 2^32 / 2^64.
@@ -2621,32 +2660,28 @@ for (my $i=0;$i < $num_int; $i++) {
       # Calculate averages & metrics
       $j=$n_rows-1;
       do {
-	if ($prev_values[$j][0] < $trigger) {
-	  if ($prev_values[$j][0] > $trigger_low) {
+	if ($prev_values[$j][0] > $trigger_low && $prev_values[$j][0] < $trigger) {
 	    if (($checkval_tdiff=$prev_values[$j+1][0]-$prev_values[$j][0])!=0) {
-              # check_perf_out_raw is array used to store calculations from multiple counts
-              $checkperf_out_raw[$jj] = [ 0,0,0,0,0 ];
+              # check_perf_out_raw is array used to store calculations from multiple counts, $jj is counter for that array
+              $checkperf_data_raw[$jj] = [ 0,0,0,0,0 ];
 
 	      # Check counter (s)
-	      if ($prev_values[$j+1][1]!=0 && $prev_values[$j][1]!=0) {
+	      if ($prev_values[$j+1][1]!=0 && $prev_values[$j][1]!=0) { # in
 	        $overfl = ($prev_values[$j+1][1] >= $prev_values[$j][1] ) ? 0 : $overfl_mod;
-	        $checkval_in = ($overfl + $prev_values[$j+1][1] - $prev_values[$j][1]) / $checkval_tdiff ;
-	        $checkperf_out_raw[$jj][0] = $checkval_in / $speed_metric;
+	        $checkperf_data_raw[$jj][0] = ($overfl + $prev_values[$j+1][1] - $prev_values[$j][1]) / $checkval_tdiff ;
 	      }
-	      if ($prev_values[$j+1][2]!=0 && $prev_values[$j][2]!=0) {
+	      if ($prev_values[$j+1][2]!=0 && $prev_values[$j][2]!=0) { # out
 	    	$overfl = ($prev_values[$j+1][2] >= $prev_values[$j][2] ) ? 0 : $overfl_mod;
-	        $checkval_out = ($overfl + $prev_values[$j+1][2] - $prev_values[$j][2]) / $checkval_tdiff;
-	        $checkperf_out_raw[$jj][1] = $checkval_out / $speed_metric;
+	        $checkperf_data_raw[$jj][1] = ($overfl + $prev_values[$j+1][2] - $prev_values[$j][2]) / $checkval_tdiff;
 	      }
 	      if (defined($o_ext_checkperf)) {
-	        $checkperf_out_raw[$jj][2] = ( ($prev_values[$j+1][3] - $prev_values[$j][3])/ $checkval_tdiff )*60;
-	        $checkperf_out_raw[$jj][3] = ( ($prev_values[$j+1][4] - $prev_values[$j][4])/ $checkval_tdiff )*60;
-	        $checkperf_out_raw[$jj][4] = ( ($prev_values[$j+1][5] - $prev_values[$j][5])/ $checkval_tdiff )*60;
-	        $checkperf_out_raw[$jj][5] = ( ($prev_values[$j+1][6] - $prev_values[$j][6])/ $checkval_tdiff )*60;
+	        $checkperf_data_raw[$jj][2] = ( ($prev_values[$j+1][3] - $prev_values[$j][3])/ $checkval_tdiff )*60;
+	        $checkperf_data_raw[$jj][3] = ( ($prev_values[$j+1][4] - $prev_values[$j][4])/ $checkval_tdiff )*60;
+	        $checkperf_data_raw[$jj][4] = ( ($prev_values[$j+1][5] - $prev_values[$j][5])/ $checkval_tdiff )*60;
+	        $checkperf_data_raw[$jj][5] = ( ($prev_values[$j+1][6] - $prev_values[$j][6])/ $checkval_tdiff )*60;
 	      }
-	      $jj++ if $checkperf_out_raw[$jj][0]!=0 || $checkperf_out_raw[$jj][1]!=0;
+	      $jj++ if $checkperf_data_raw[$jj][0]!=0 || $checkperf_data_raw[$jj][1]!=0;
 	    }
-	  }
 	}
 	$j--;
       } while ( $j>=0 && $jj<$o_pcount );
@@ -2656,19 +2691,35 @@ for (my $i=0;$i < $num_int; $i++) {
         for (my $k=0;$k<5;$k++) {
           $n=0;
           for ($j=0;$j<$jj;$j++) {
-	    if ($checkperf_out_raw[$j][$k]!=0) {
+	    if ($checkperf_data_raw[$j][$k]!=0) {
 	      $n++;
-	      $checkperf_out[$k]+=$checkperf_out_raw[$j][$k];
+	      $checkperf_data[$k]+=$checkperf_data_raw[$j][$k];
             }
           }
 	  if ($n>0) {
-	    $checkperf_out[$k]=$checkperf_out[$k]/$n;
+	    $checkperf_data[$k]=$checkperf_data[$k]/$n;
+	    if ($k==0 || $k==1) {
+	      $interfaces[$i]{'multi_in_bytes_sec'} = $checkperf_data[$k] if $k==0;
+	      $interfaces[$i]{'multi_out_bytes_sec'} = $checkperf_data[$k] if $k==1;
+	      $checkperf_data[$k] = $checkperf_data[$k] / $speed_metric;
+	    }
 	  }
         }
       }
       else {
-        $usable_data=1;
+        $data_not_usable=1;
       }
+      
+      # Compare data to 50-percentile averages
+      if (defined($interfaces[$i]{'tavg_in_bytes_sec'}) && $interfaces[$i]{'tavg_in_bytes_sec'} !=0 && 
+          defined($interfaces[$i]{'multi_in_bytes_sec'})) {
+	  $interfaces[$i]{'tavg_in_perc_current'} = $interfaces[$i]{'multi_in_bytes_sec'} / $interfaces[$i]{'tavg_in_bytes_sec'} * 100;
+      }
+      if (defined($interfaces[$i]{'tavg_out_bytes_sec'}) && $interfaces[$i]{'tavg_out_bytes_sec'} !=0 &&
+          defined($interfaces[$i]{'multi_out_bytes_sec'})) {
+	  $interfaces[$i]{'tavg_out_perc_current'} = $interfaces[$i]{'multi_out_bytes_sec'} / $interfaces[$i]{'tavg_out_bytes_sec'} * 100;      
+      }
+      
     }
 
     # WL: modified to not write the file if both -P and -T options are used
@@ -2684,27 +2735,45 @@ for (my $i=0;$i < $num_int; $i++) {
     $print_out.=sprintf("%s:%s",$int_desc, $status_print{$int_status});
     $print_out.=' ['.$int_status_extratext.']' if $int_status_extratext;
     # print the other checks if it was calculated
-    if ($usable_data==0 && defined($checkperf_out[0])) {
+    if ($data_not_usable==0 && defined($checkperf_data[0])) {
       $print_out.= " (";
       # check 2 or 6 values depending on ext_check_perf
       my $num_checkperf=(defined($o_ext_checkperf))?6:2;
       for (my $l=0;$l < $num_checkperf;$l++) {
 	    # Set labels if needed
-	    $checkperf_out_desc= (defined($o_islabel)) ? $countername[$l] : "";
-	    verb("Interface $i, threshold check $l : $checkperf_out[$l]");
+	    $checkperf_data_desc= (defined($o_islabel)) ? $countername[$l] : "";
+	    verb("Interface $i, threshold check $l : $checkperf_data[$l]");
 	    $print_out.="/" if $l!=0;
-	    if ((defined($o_crit_max[$l]) && $o_crit_max[$l] && ($checkperf_out[$l]>$o_crit_max[$l])) ||
-                (defined($o_crit_min[$l]) && $o_crit_min[$l] && ($checkperf_out[$l]<$o_crit_min[$l]))) {
+	    if ((defined($o_crit_max[$l]) && $o_crit_max[$l] && ($checkperf_data[$l]>$o_crit_max[$l])) ||
+                (defined($o_crit_min[$l]) && $o_crit_min[$l] && ($checkperf_data[$l]<$o_crit_min[$l]))) {
 		$final_status=2;
-		$print_out.= sprintf("CRIT %s%.1f",$checkperf_out_desc,$checkperf_out[$l]);
-	    } elsif ((defined($o_warn_max[$l]) && $o_warn_max[$l] && ($checkperf_out[$l]>$o_warn_max[$l])) ||
-	             (defined($o_warn_min[$l]) && $o_warn_min[$l] && ($checkperf_out[$l]<$o_warn_min[$l]))) {
+		$print_out.= sprintf("CRIT %s%.1f",$checkperf_data_desc,$checkperf_data[$l]);
+	    } elsif ((defined($o_warn_max[$l]) && $o_warn_max[$l] && ($checkperf_data[$l]>$o_warn_max[$l])) ||
+	             (defined($o_warn_min[$l]) && $o_warn_min[$l] && ($checkperf_data[$l]<$o_warn_min[$l]))) {
 		$final_status=($final_status==2)?2:1;
-		$print_out.= sprintf("WARN %s%.1f",$checkperf_out_desc,$checkperf_out[$l]);
+		$print_out.= sprintf("WARN %s%.1f",$checkperf_data_desc,$checkperf_data[$l]);
 	    } else {
-		$print_out.= sprintf("%s%.1f",$checkperf_out_desc,$checkperf_out[$l]);
+		$print_out.= sprintf("%s%.1f",$checkperf_data_desc,$checkperf_data[$l]);
 	    }
 	    $print_out.= $speed_unit if defined($speed_unit) && ($l==0 || $l==1);
+	    if (defined($o_traffavg) && $l==0 && defined($interfaces[$i]{'tavg_in_bytes_sec'})) {
+		$print_out.='[';
+		if (defined($interfaces[$i]{'tavg_in_perc_current'})) {
+		    $print_out.= sprintf("%.1f%% of ",$interfaces[$i]{'tavg_in_perc_current'});
+		}
+		$print_out.=sprintf("%d-hr AVG %sb]",
+		  ($timenow-$interfaces[$i]{'tavg_stime'})/3600,
+		  bitnum2str($interfaces[$i]{'tavg_in_bytes_sec'}*8));
+	    }
+	    if (defined($o_traffavg) && $l==1 && defined($interfaces[$i]{'tavg_ou_bytes_sec'})) {
+		$print_out.='[';
+		if (defined($interfaces[$i]{'tavg_out_perc_current'})) {
+		    $print_out.= sprintf("%.1f%% of ",$interfaces[$i]{'tavg_out_perc_current'});
+		}
+		$print_out.=sprintf("%d-hr AVG %sb]",
+		  ($timenow-$interfaces[$i]{'tavg_stime'})/3600,
+		  bitnum2str($interfaces[$i]{'tavg__bytes_sec'}*8));
+	    }
       }
       $print_out .= ")";
     }
@@ -2728,31 +2797,31 @@ for (my $i=0;$i < $num_int; $i++) {
   # Don't return performance data for interfaces that are down and are supposed to be down
   if (!(defined($o_admindown_ok) && $ok_val==1 && $int_status == $status{'DOWN'} && $admin_int_status == $status{'DOWN'}) && defined($interfaces[$i]{'descr'}) && (defined($o_perf) || defined($o_intspeed) || defined($o_perfr) || defined($o_perfp) || defined($o_checkperf))) {
     if (defined ($o_perfp)) { # output in % of speed
-	if ($usable_data==0 && defined($checkperf_out[0]) && defined($checkperf_out[1])) {
+	if ($data_not_usable==0 && defined($checkperf_data[0]) && defined($checkperf_data[1])) {
 	    if (defined($o_prct)) {
 		$perf_out .= " ".perf_name($descr,"in_prct")."=";
-		$perf_out .= sprintf("%.0f",$checkperf_out[0]) . '%;';
+		$perf_out .= sprintf("%.0f",$checkperf_data[0]) . '%;';
 		$perf_out .= (defined($o_warn_max[0]) && $o_warn_max[0]) ? $o_warn_max[0] . ";" : ";";
 		$perf_out .= (defined($o_crit_max[0]) && $o_crit_max[0]) ? $o_crit_max[0] . ";" : ";";
 		$perf_out .= "0;100 ";
 		$perf_out .= " ".perf_name($descr,"out_prct")."=";
-		$perf_out .= sprintf("%.0f",$checkperf_out[1]) . '%;';
+		$perf_out .= sprintf("%.0f",$checkperf_data[1]) . '%;';
 		$perf_out .= (defined($o_warn_max[1]) && $o_warn_max[1]) ? $o_warn_max[1] . ";" : ";";
 		$perf_out .= (defined($o_crit_max[1]) && $o_crit_max[1]) ? $o_crit_max[1] . ";" : ";";
 		$perf_out .= "0;100 ";
 	    }
 	    elsif (defined($interfaces[$i]{'portspeed'}) && $interfaces[$i]{'portspeed'} != 0) {
 		$perf_out .= " ".perf_name($descr,"in_prct")."=";
-		$perf_out .= sprintf("%.0f", $checkperf_out[0]*$speed_metric/$interfaces[$i]{'portspeed'}*800). '%';
+		$perf_out .= sprintf("%.0f", $checkperf_data[0]*$speed_metric/$interfaces[$i]{'portspeed'}*800). '%';
 		$perf_out .= " ".perf_name($descr,"out_prct")."=";
-		$perf_out .= sprintf("%.0f", $checkperf_out[1]*$speed_metric/$interfaces[$i]{'portspeed'}*800). '%';
+		$perf_out .= sprintf("%.0f", $checkperf_data[1]*$speed_metric/$interfaces[$i]{'portspeed'}*800). '%';
 	    }
 	    else {
 		verb("we do not have information on speed of interface $i (".$interfaces[$i]{'descr'}.")");
 	    }
 	}
     } elsif (defined ($o_perfr)) { # output in bites or Bytes /s
-	if ($usable_data==0) {
+	if ($data_not_usable==0) {
   	    if (defined($o_kbits)) { # bps
 		  # put warning and critical levels into bps or Bps
 		  my $warn_factor=undef;
@@ -2763,12 +2832,12 @@ for (my $i=0;$i < $num_int; $i++) {
 		  }
 		  if (defined($warn_factor)) {
 			$perf_out .= " ".perf_name($descr,"in_bps")."=";
-			$perf_out .= sprintf("%.0f",$checkperf_out[0] * 8 * $speed_metric) .";" if defined($checkperf_out[0]);
+			$perf_out .= sprintf("%.0f",$checkperf_data[0] * 8 * $speed_metric) .";" if defined($checkperf_data[0]);
 			$perf_out .= (defined($o_warn_max[0]) && $o_warn_max[0]) ? $o_warn_max[0]*$warn_factor . ";" : ";";
 			$perf_out .= (defined($o_crit_max[0]) && $o_crit_max[0]) ? $o_crit_max[0]*$warn_factor . ";" : ";";
 			$perf_out .= "0;". $interfaces[$i]{'portspeed'} ." " if defined($interfaces[$i]{'portspeed'});
 			$perf_out .= " ".perf_name($descr, "out_bps"). "=";
-			$perf_out .= sprintf("%.0f",$checkperf_out[1] * 8 * $speed_metric) .";" if defined($checkperf_out[1]);
+			$perf_out .= sprintf("%.0f",$checkperf_data[1] * 8 * $speed_metric) .";" if defined($checkperf_data[1]);
 			$perf_out .= (defined($o_warn_max[1]) && $o_warn_max[1]) ? $o_warn_max[1]*$warn_factor . ";" : ";";
 			$perf_out .= (defined($o_crit_max[1]) && $o_crit_max[1]) ? $o_crit_max[1]*$warn_factor . ";" : ";";
 			$perf_out .= "0;". $interfaces[$i]{'portspeed'} ." " if defined($interfaces[$i]{'portspeed'});
@@ -2781,11 +2850,11 @@ for (my $i=0;$i < $num_int; $i++) {
 			$warn_factor = (defined($o_meg)) ? 1048576 : (defined($o_gig)) ? 1073741824 : 1024;
 		  }
 		  if (defined($warn_factor)) {
-			$perf_out .= " ".perf_name($descr,"in_Bps")."=" . sprintf("%.0f",$checkperf_out[0] * $speed_metric) .";" if defined($checkperf_out[0]);
+			$perf_out .= " ".perf_name($descr,"in_Bps")."=" . sprintf("%.0f",$checkperf_data[0] * $speed_metric) .";" if defined($checkperf_data[0]);
 			$perf_out .= (defined($o_warn_max[0]) && $o_warn_max[0]) ? $o_warn_max[0]*$warn_factor . ";" : ";";
 			$perf_out .= (defined($o_crit_max[0]) && $o_crit_max[0]) ? $o_crit_max[0]*$warn_factor . ";" : ";";
 			$perf_out .= "0;". $interfaces[$i]{'portspeed'} / 8 ." " if defined($interfaces[$i]{'portspeed'});
-			$perf_out .= " ".perf_name($descr,"out_Bps")."=" . sprintf("%.0f",$checkperf_out[1] * $speed_metric) .";" if defined($checkperf_out[1]);
+			$perf_out .= " ".perf_name($descr,"out_Bps")."=" . sprintf("%.0f",$checkperf_data[1] * $speed_metric) .";" if defined($checkperf_data[1]);
 			$perf_out .= (defined($o_warn_max[1]) && $o_warn_max[1]) ? $o_warn_max[1]*$warn_factor . ";" : ";";
 			$perf_out .= (defined($o_crit_max[1]) && $o_crit_max[1]) ? $o_crit_max[1]*$warn_factor . ";" : ";";
 			$perf_out .= "0;". $interfaces[$i]{'portspeed'} / 8 ." " if defined($interfaces[$i]{'portspeed'});
@@ -2813,6 +2882,11 @@ for (my $i=0;$i < $num_int; $i++) {
     }
     if (defined($interfaces[$i]{'portspeed'}) && defined($o_perf) && defined($o_intspeed)) {
         $perf_out .= " ".perf_name($descr,"speed_bps")."=".$interfaces[$i]{'portspeed'};
+    }
+    if (defined($o_traffavg)) {
+        # TODO: add threshhold after ; for these when they are available
+        $perf_out.=" ".perf_name($descr,'in_perc_avg').'='.$interfaces[$i]{'tavg_in_perc_current'}.'%';
+        $perf_out.=" ".perf_name($descr,'out_perc_avg').'='.$interfaces[$i]{'tavg_out_perc_current'}.'%';
     }
   }
 }
@@ -2845,6 +2919,18 @@ if (defined($o_prevperf) && $o_pcount>0) {
         }
         $pcount++;
       }
+    }
+    if (defined($o_traffavg)) {
+      my $tavg_stime_next = prev_perf($interfaces[$i]{'descr'},'tavg_stime');
+      if (!defined($tavg_stime_next)) {
+         $tavg_stime_next .= $timenow;
+      }
+      elsif (($timenow - $tavg_stime_next) > $traffavg_timerange) {
+         $tavg_stime_next .= $timenow - $traffavg_timerange;
+      }
+      $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_stime').'='.$tavg_stime_next;
+      $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_in_bytes_sec').'='.$interfaces[$i]{'tavg_in_bytes_sec'};
+      $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_out_bytes_sec').'='.$interfaces[$i]{'tavg_out_bytes_sec'};
     }
   }
   $saved_out .= " ptime=".$timenow;
