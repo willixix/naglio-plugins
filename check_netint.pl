@@ -1497,13 +1497,13 @@ sub check_options {
 	}
     }
     # average traffic calculations option
-    if (defined($o_traffavg) && $o_traffavg =~ /(\d+)/) {
+    if (defined($o_traffavg)) {
       if ($o_traffavg =~ /(\d+),(\d+)/) {
 	  $traffavg_timerange=$1;
 	  $traffavg_alertstart=$2;
       }
-      else {
-	  print "Must specify both time-range and alert-start for -O option\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
+      elsif ($o_traffavg ne '') {
+	  print "You must specify both time-range and alert-start for -O option\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
       }
       $traffavg_timerange=$traffavg_timerange*60; # make it into seconds
       $traffavg_alertstart=$traffavg_alertstart*60;
@@ -2640,7 +2640,9 @@ for (my $i=0;$i < $num_int; $i++) {
     # added in 2.4. use for tavg 50-percentile calculations, but maybe used for more later
     if (defined(prev_perf('ptime')) && defined($interfaces[$i]{'in_bytes_last'}) && defined($interfaces[$i]{'out_bytes_last'})) {
 	$interfaces[$i]{'in_bytes_difflast'} = $interfaces[$i]{'in_bytes'}-$interfaces[$i]{'in_bytes_last'};
+	$interfaces[$i]{'in_bytes_difflast'} = 0 if $interfaces[$i]{'in_bytes_difflast'} < 0;
 	$interfaces[$i]{'out_bytes_difflast'} = $interfaces[$i]{'out_bytes'}-$interfaces[$i]{'out_bytes_last'};
+	$interfaces[$i]{'out_bytes_difflast'} = 0 if $interfaces[$i]{'out_bytes_difflast'} < 0;
 	$interfaces[$i]{'in_bytes_sec'} = $interfaces[$i]{'in_bytes_difflast'}/($timenow-prev_perf('ptime'));
 	$interfaces[$i]{'out_bytes_sec'} = $interfaces[$i]{'out_bytes_difflast'}/($timenow-prev_perf('ptime'));
         verb("Interface $descr calculated in_bytes_difflast=".$interfaces[$i]{'in_bytes_difflast'});
@@ -2815,16 +2817,16 @@ for (my $i=0;$i < $num_int; $i++) {
 		if (defined($interfaces[$i]{'tavg_in_perc_current'})) {
 		    $print_out.= sprintf("%.1f%% of ",$interfaces[$i]{'tavg_in_perc_current'});
 		}
-		$print_out.=sprintf("%dHr AVG %sb]",
+		$print_out.=sprintf("%2dhr AVG %sb]",
 		  ($timenow-prev_perf($interfaces[$i]{'descr'},'tavg_stime'))/3600,
 		  bitnum2str($interfaces[$i]{'tavg_in_bytes_sec'}*8));
 	    }
-	    if (defined($o_traffavg) && $l==1 && defined($interfaces[$i]{'tavg_ou_bytes_sec'})) {
+	    if (defined($o_traffavg) && $l==1 && defined($interfaces[$i]{'tavg_out_bytes_sec'})) {
 		$print_out.='[';
 		if (defined($interfaces[$i]{'tavg_out_perc_current'})) {
 		    $print_out.= sprintf("%.1f%% of ",$interfaces[$i]{'tavg_out_perc_current'});
 		}
-		$print_out.=sprintf("%d-hr AVG %sb]",
+		$print_out.=sprintf("%2dhr AVG %sb]",
 		  ($timenow-prev_perf($interfaces[$i]{'descr'},'tavg_stime'))/3600,
 		  bitnum2str($interfaces[$i]{'tavg__bytes_sec'}*8));
 	    }
@@ -2983,15 +2985,17 @@ if (defined($o_prevperf) && $o_pcount>0) {
     if (defined($o_traffavg)) {
       my $tavg_stime_next = prev_perf($interfaces[$i]{'descr'},'tavg_stime');
       if (!defined($tavg_stime_next)) {
-         $tavg_stime_next .= $timenow;
+         $tavg_stime_next = $timenow;
       }
-      elsif (($timenow - $tavg_stime_next) > $traffavg_timerange) {
-         $tavg_stime_next .= $timenow - $traffavg_timerange;
+      elsif (($timenow - $tavg_stime_next) > $traffavg_timerange ||
+             ($timenow - $tavg_stime_next) < 0) {
+         $tavg_stime_next = $timenow - $traffavg_timerange;
       }
+      $tavg_stime_next = 0 if $tavg_stime_next < 0;
       $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_stime').'='.$tavg_stime_next;
       if (defined($interfaces[$i]{'tavg_in_bytes_sec'}) && defined($interfaces[$i]{'tavg_out_bytes_sec'})) {
-         $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_in_bytes_sec').'='.$interfaces[$i]{'tavg_in_bytes_sec'};
-         $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_out_bytes_sec').'='.$interfaces[$i]{'tavg_out_bytes_sec'};
+         $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_in_bytes_sec').'='.sprintf("%.2f",$interfaces[$i]{'tavg_in_bytes_sec'});
+         $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_out_bytes_sec').'='.sprintf("%.2f",$interfaces[$i]{'tavg_out_bytes_sec'});
       }
     }
   }
@@ -3010,6 +3014,7 @@ if (($num_ok == $num_int) || (defined($o_admindown_ok) && $num_ok+$num_admindown
   $exit_status="CRITICAL" if $final_status==2;
   if (defined($o_admindown_ok)) {
      print $print_out," ($num_ok UP, $num_admindown ADMIN DOWN): $exit_status";
+
   } else {
      print $print_out," ($num_ok UP): $exit_status";
   }
