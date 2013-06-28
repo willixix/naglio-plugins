@@ -2638,19 +2638,23 @@ for (my $i=0;$i < $num_int; $i++) {
     }
     
     # added in 2.4. use for tavg 50-percentile calculations, but maybe used for more later
-    if (defined(prev_perf($descr,'ptime')) && defined($interfaces[$i]{'in_bytes_last'}) && defined($interfaces[$i]{'out_bytes_last'})) {
-	$interfaces[$i]{'in_bytes_difflast'} = $interfaces[$i]{'in_bytes_last'}-$interfaces[$i]{'in_bytes'};
-	$interfaces[$i]{'out_bytes_difflast'} = $interfaces[$i]{'out_bytes_last'}-$interfaces[$i]{'out_bytes'};
-	$interfaces[$i]{'in_bytes_sec'} = $interfaces[$i]{'in_bytes_difflast'}/($timenow-prev_perf($descr,'ptime'));
-	$interfaces[$i]{'out_bytes_sec'} = $interfaces[$i]{'out_bytes_difflast'}/($timenow-prev_perf($descr,'ptime'));
+    if (defined(prev_perf('ptime')) && defined($interfaces[$i]{'in_bytes_last'}) && defined($interfaces[$i]{'out_bytes_last'})) {
+	$interfaces[$i]{'in_bytes_difflast'} = $interfaces[$i]{'in_bytes'}-$interfaces[$i]{'in_bytes_last'};
+	$interfaces[$i]{'out_bytes_difflast'} = $interfaces[$i]{'out_bytes'}-$interfaces[$i]{'out_bytes_last'};
+	$interfaces[$i]{'in_bytes_sec'} = $interfaces[$i]{'in_bytes_difflast'}/($timenow-prev_perf('ptime'));
+	$interfaces[$i]{'out_bytes_sec'} = $interfaces[$i]{'out_bytes_difflast'}/($timenow-prev_perf('ptime'));
+        verb("Interface $descr calculated in_bytes_difflast=".$interfaces[$i]{'in_bytes_difflast'});
+	verb("Interface $descr calculated out_bytes_difflast=".$interfaces[$i]{'out_bytes_difflast'});
+	verb("Interface $descr calculated in_bytes_sec=".$interfaces[$i]{'in_bytes_sec'});
+	verb("Interface $descr calculated out_bytes_sec=".$interfaces[$i]{'out_bytes_sec'});
     }
     
     # Traffic average 50-percentile over long period of time calculations
     if (defined($o_traffavg) && defined($interfaces[$i]{'in_bytes_sec'}) && defined($interfaces[$i]{'out_bytes_sec'})) {
 	if (defined(prev_perf($descr,'tavg_stime')) && defined(prev_perf($descr,'tavg_in_bytes_sec')) && defined(prev_perf($descr,'tavg_out_bytes_sec'))) {
-	    my $tavg_timeframe = prev_perf($descr,'ptime') - prev_perf($descr,'tavg_stime');
-	    $interfaces[$i]{'tavg_in_bytes_sec'} = (prev_perf($descr,'tavg_in_bytes_sec')*$tavg_timeframe + $interfaces[$i]{'in_bytes_difflast'})/($tavg_timeframe + ($timenow-prev_perf($descr,'ptime')));
-	    $interfaces[$i]{'tavg_out_bytes_sec'} = (prev_perf($descr,'tavg_out_bytes_sec')*$tavg_timeframe + $interfaces[$i]{'out_bytes_difflast'})/($tavg_timeframe + ($timenow-prev_perf($descr,'ptime')));
+	    my $tavg_timeframe = prev_perf('ptime') - prev_perf($descr,'tavg_stime');
+	    $interfaces[$i]{'tavg_in_bytes_sec'} = (prev_perf($descr,'tavg_in_bytes_sec')*$tavg_timeframe + $interfaces[$i]{'in_bytes_difflast'})/($tavg_timeframe + ($timenow-prev_perf('ptime')));
+	    $interfaces[$i]{'tavg_out_bytes_sec'} = (prev_perf($descr,'tavg_out_bytes_sec')*$tavg_timeframe + $interfaces[$i]{'out_bytes_difflast'})/($tavg_timeframe + ($timenow-prev_perf('ptime')));
 	}
 	else {
 	    $interfaces[$i]{'tavg_in_bytes_sec'} = $interfaces[$i]{'in_bytes_sec'};
@@ -2762,10 +2766,12 @@ for (my $i=0;$i < $num_int; $i++) {
       if (defined($interfaces[$i]{'tavg_in_bytes_sec'}) && $interfaces[$i]{'tavg_in_bytes_sec'} !=0 && 
           defined($interfaces[$i]{'multi_in_bytes_sec'})) {
 	  $interfaces[$i]{'tavg_in_perc_current'} = $interfaces[$i]{'multi_in_bytes_sec'} / $interfaces[$i]{'tavg_in_bytes_sec'} * 100;
+	  verb("Interface ".$interfaces[$i]{'descr'}." calculated tavg_in_perc_current=".$interfaces[$i]{'tavg_in_perc_current'});
       }
       if (defined($interfaces[$i]{'tavg_out_bytes_sec'}) && $interfaces[$i]{'tavg_out_bytes_sec'} !=0 &&
           defined($interfaces[$i]{'multi_out_bytes_sec'})) {
 	  $interfaces[$i]{'tavg_out_perc_current'} = $interfaces[$i]{'multi_out_bytes_sec'} / $interfaces[$i]{'tavg_out_bytes_sec'} * 100;      
+	  verb("Interface ".$interfaces[$i]{'descr'}." calculated tavg_out_perc_current=".$interfaces[$i]{'tavg_out_perc_current'});
       }
       
     }
@@ -2809,8 +2815,8 @@ for (my $i=0;$i < $num_int; $i++) {
 		if (defined($interfaces[$i]{'tavg_in_perc_current'})) {
 		    $print_out.= sprintf("%.1f%% of ",$interfaces[$i]{'tavg_in_perc_current'});
 		}
-		$print_out.=sprintf("%d-hr AVG %sb]",
-		  ($timenow-$interfaces[$i]{'tavg_stime'})/3600,
+		$print_out.=sprintf("%dHr AVG %sb]",
+		  ($timenow-prev_perf($interfaces[$i]{'descr'},'tavg_stime'))/3600,
 		  bitnum2str($interfaces[$i]{'tavg_in_bytes_sec'}*8));
 	    }
 	    if (defined($o_traffavg) && $l==1 && defined($interfaces[$i]{'tavg_ou_bytes_sec'})) {
@@ -2819,7 +2825,7 @@ for (my $i=0;$i < $num_int; $i++) {
 		    $print_out.= sprintf("%.1f%% of ",$interfaces[$i]{'tavg_out_perc_current'});
 		}
 		$print_out.=sprintf("%d-hr AVG %sb]",
-		  ($timenow-$interfaces[$i]{'tavg_stime'})/3600,
+		  ($timenow-prev_perf($interfaces[$i]{'descr'},'tavg_stime'))/3600,
 		  bitnum2str($interfaces[$i]{'tavg__bytes_sec'}*8));
 	    }
       }
@@ -2937,7 +2943,7 @@ for (my $i=0;$i < $num_int; $i++) {
     if (defined($interfaces[$i]{'portspeed'}) && defined($o_perf) && defined($o_intspeed)) {
         $perf_out .= " ".perf_name($descr,"speed_bps")."=".$interfaces[$i]{'portspeed'};
     }
-    if (defined($o_traffavg) && defined($interfaces[$i]{'tavg_in_perc_current'}) && define($interfaces[$i]{'tavg_out_perc_current'})) {
+    if (defined($o_traffavg) && defined($interfaces[$i]{'tavg_in_perc_current'}) && defined($interfaces[$i]{'tavg_out_perc_current'})) {
         # TODO: add threshhold after ; for these when they are available
         $perf_out .= " ".perf_name($descr,'in_perc_avg').'='.$interfaces[$i]{'tavg_in_perc_current'}.'%';
         $perf_out .= " ".perf_name($descr,'out_perc_avg').'='.$interfaces[$i]{'tavg_out_perc_current'}.'%';
