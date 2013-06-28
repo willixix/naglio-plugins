@@ -747,7 +747,7 @@ my $o_traffavg=		 undef;  # New v2.4 option that allows to keep track of average
 my $traffavg_timerange=1440;    # Range of time over which to average in minutes
 my $traffavg_alertstart=720;    # How much traffic data is enough in minutes
 
-# These are for previous performance data so that nagios can feed it back toi
+# These are for previous performance data so that nagios can feed it back to
 # the plugin with $SERVICEPERFDATA$ macro (and $SERVICESAVEDDATA$ for future
 # naios versions). This allows to calculate traffic without temporary file
 # and also used to cache SNMP table info so as not to retreive it every time
@@ -1638,10 +1638,9 @@ sub set_snmp_window {
 # 1st argument is session
 # 2nd is ref to list of OIDs
 # 3rd is optional text for error & debug info
-# 4th argument is optional hash of array to be filled with results
-# 5th argument to enable to disable processing this with bulk snmp if possible
+# 4th argument to enable to disable processing of bulk snmp to override auto
 sub snmp_get_request {
-  my ($snmpsession, $oids_ref, $table_name, $results, $bulk_snmp_on) = @_;
+  my ($snmpsession, $oids_ref, $table_name, $bulk_snmp_on) = @_;
   my $result = undef;
 
   if (!defined($snmpsession)) {
@@ -1680,10 +1679,7 @@ sub snmp_get_request {
   }
 
   verb("Finished SNMP request. Result contains ".scalar(keys %$result)." entries:");
-  foreach(keys %$result) {
-      $results->{$_} = $result->{$_} if defined($results);
-      verb(" ".$_." = ".$result->{$_});
-  }
+  verb(" ".$_." = ".$result->{$_}) foreach(keys %$result);
 
   return $result;
 }
@@ -1721,6 +1717,18 @@ sub snmp_get_table {
       exit $ERRORS{"UNKNOWN"};
    }
    return $result;
+}
+
+# Adds data from one hash to another
+sub copy_hash_data {
+  my ($hash_to_fill,$hash_to_copy) = @_;
+  if (defined($hash_to_fill) && defined($hash_to_copy)) {
+     foreach (keys %$hash_to_copy) {
+         $hash_to_fill->{$_}=$hash_to_copy->{$_};
+     }
+     return $hash_to_fill;
+  }
+  return undef;
 }
 
 # executes shell command, returns results blob file pointer
@@ -1961,7 +1969,8 @@ sub getdata_snmp {
    my @descr=();
    my %copt=();
    my %copt_next=();
-   my $results = {};
+   my %snmpresults = ();
+   my $results = \%snmpresults;
    my (@oid_perf,@oid_perf_outoct,@oid_perf_inoct,@oid_perf_inerr,@oid_perf_outerr,@oid_perf_indisc,@oid_perf_outdisc)= (undef,undef,undef,undef,undef,undef,undef);
    my ($result1,$result2,$data1) = (undef,undef,undef);
    my $int_status_extratext="";
@@ -2037,7 +2046,7 @@ sub getdata_snmp {
       $result1 = snmp_get_table($session, $descr_table, "Interfaces Description Table");
       foreach my $key (keys %$result1) {
 	 $data1 = clean_int_name($result1->{$key});
-	 verb(" OID : $key, Clean Desc : $data1, Raw Desc: ".$result1->{$key});
+	 verb(" OID: $key Clean Desc: '$data1' Raw Desc: ".$result1->{$key});
 
 	 if (int_name_match($data1) && $key =~ /$descr_table\.(.*)/) {
 	    $interfaces[$num_int] = { 'descr' => '', 'admin_up' => 0, 'oper_up' => 0, 'in_bytes' => 0, 'out_bytes' => 0,
@@ -2166,24 +2175,24 @@ sub getdata_snmp {
       # Get the requested oid values
       $do_bulk_snmp =1 if $o_bulksnmp eq 'on' || ($o_bulksnmp eq 'optimize' && scalar(@oids)>30);
       set_snmp_window($session,$do_bulk_snmp);
-      snmp_get_request($session, \@oids, "status table", $results. $do_bulk_snmp);
+      copy_hash_data($results,snmp_get_request($session, \@oids, "status table", $do_bulk_snmp));
 
       # If not doing it as one query, do additional queries
       # to get the perf value if -f (performance) option defined or -k (check bandwidth)
       if ((defined($o_perf) || defined($o_checkperf) || defined($o_zerothresholds) || defined($o_intspeed)) && !defined($o_minsnmp)) {
-	 snmp_get_request($session, \@oid_perf, "statistics table", $results, $do_bulk_snmp);
+	 copy_hash_data($results,snmp_get_request($session, \@oid_perf, "statistics table", $do_bulk_snmp));
       }
       # and additional cisco status tables
       if (defined($o_ciscocat) && !defined($o_minsnmp) && scalar(@oid_ciscostatus)>0) {
-	 snmp_get_request($session, \@oid_ciscostatus, "cisco status tables", $results, $do_bulk_snmp);
+	 copy_hash_data($results,snmp_get_request($session, \@oid_ciscostatus, "cisco status tables", $do_bulk_snmp));
       }
       # and stp state table if --stp option is given
       if (defined($o_stp) && !defined($o_minsnmp) && scalar(@oid_stpstate)>0) {
-	 snmp_get_request($session, \@oid_stpstate, "stp state table", $results, $do_bulk_snmp);
+	 copy_hash_data($results,snmp_get_request($session, \@oid_stpstate, "stp state table", $do_bulk_snmp));
       }
       # and additional comments / port description table
       if (defined($o_commentoid) && !defined($o_minsnmp) && scalar(@oid_commentlabel)>0) {
-	 snmp_get_request($session, \@oid_commentlabel, "comments table", $results, $do_bulk_snmp);
+	 copy_hash_data($results,snmp_get_request($session, \@oid_commentlabel, "comments table", $do_bulk_snmp));
       }
 
       $session->close;
@@ -2212,7 +2221,7 @@ sub getdata_snmp {
 		}
 		exit $ERRORS{"UNKNOWN"};
 	    }
-	    verb("Name : $dsc [confirmed cached name for port $i]");
+	    verb("Name : $dsc [confirmed name for port $i]");
 	 }
 
 	 # Admin and Oper Status
