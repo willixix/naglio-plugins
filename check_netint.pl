@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# =============================== SUMMARY =====================================
+# ============================= SUMMARY =====================================
 #
 # Program : check_netint.pl or check_snmp_netint.pl
 # Version : 2.4 beta 5
@@ -9,13 +9,13 @@
 # Authors : See "CONTRIBUTORS" documentation section
 # Licence : GPL - summary below, full text at http://www.fsf.org/licenses/gpl.txt
 #
-#  ********************* IMPORTANT NOTE ABOUT THIS VERSION ********************
-#  *** THIS IS AN ALPHA/DEVELOPMENT RELEASE WHICH HAS NOT BEEN FULLY TESTED ***
-#  *** IF YOU NEED A STABLE VERSION, PLEASE GET 2.36 VERSION OF THIS PLUGIN ***
-#  *** AT HTTP://william.leibzon.org/nagios/ or http://exchange.nagios.org/ ***
-#  ****************************************************************************
+#  ******************** IMPORTANT NOTE ABOUT THIS VERSION *******************
+#  ** THIS IS AN ALPHA/DEVELOPMENT RELEASE WHICH HAS NOT BEEN FULLY TESTED **
+#  ** IF YOU NEED A STABLE VERSION, PLEASE GET 2.36 VERSION OF THIS PLUGIN **
+#  ** AT HTTP://william.leibzon.org/nagios/ or http://exchange.nagios.org/ **
+#  **************************************************************************
 #
-# =========================== PROGRAM LICENSE =================================
+# =========================== PROGRAM LICENSE ===============================
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 #
-# ===================== INFORMATION ABOUT THIS PLUGIN =========================
+# ===================== INFORMATION ABOUT THIS PLUGIN =======================
 #
 #  This is a plugin for nagios to check network interfaces (network ports)
 #  on servers switches & routers. It is based on check_snmp_int.pl plugin
@@ -42,10 +42,10 @@
 #  traffic & utilization without creation of temporary files. This new 2.4
 #  version supports checking interface on a local linux server without SNMP.
 #
-# ======================  SETUP AND PLUGIN USE NOTES  =========================
+# ======================  SETUP AND PLUGIN USE NOTES  =======================
 #
 # Help : ./check_snmp_netint.pl -h
-#   above will tell you most you probalby need for this to make this plugin work
+#   above will tell you most of what you need to make this plugin work
 #
 # Patrick's Site: http://nagios.manubulon.com/snmp_int.html
 #   documentation reproduced below for options shared with check_snmp_int
@@ -55,7 +55,7 @@
 # and remove ' from illegal_macro_output_chars=`~$&|'"<> line, i.e. change to
 #   illegal_macro_output_chars=`~$&|"<>
 #
-# ------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Checks by snmp (v1, v2c or v3) host interface state and usage.
 # Interfaces can be selected by regexp ('eth' will check eth0,eth1,eth2, ...).
 # If multiple interfaces are selected, all must be up to get an OK result
@@ -65,10 +65,10 @@
 #   To see how interface looks like in snmp, you can list all with the '-v'.
 #
 #   The interfaces are selected by their description in the MIB-II table.
-#   The interface is/are selected by the -n option. This option will be treated
-#   as a regular expression (eth will match eth0,eth1,eth2...). You can disable
-#   this with the -r option : the interface will be selected if it's description
-#   exactly matches the name given by -n
+#   The interface is/are selected by the -n option. This option will be
+#   treated as a regular expression (eth will match eth0,eth1,eth2...).
+#   You can disable this with the -r option : the interface will be
+#   selected if it's description exactly matches the name given by -n
 #
 #   The script will return OK if ALL interfaces selected are UP, or CRITICAL
 #   if at least one interface is down. You can make the script return a OK
@@ -77,21 +77,22 @@
 #   instead with the -a option. If you have ISDN interface, and want that
 #   DORMANT state returns ok, put -D.
 #
-#   To make output shorter, specially when you have many interfaces, you can put
-#   the -s option. It will get only the first <n> characters of the interface
-#   description. If the number is negative then get the last <n> characters.
-#   Ex : EL20005 3Com Gigabit NIC (3C2000 Family)
+#   To make output shorter, specially when you have many interfaces, you can 
+#   put the -s option. It will get only the first <n> characters of the
+#   interface description. If the number is negative then get the last <n>
+#   characters. Ex : EL20005 3Com Gigabit NIC (3C2000 Family)
 #      -s 4 will output : "EL20".
 #      -s -4 will output : "ily)".
 #
 # Performance output
-#   -f option : performance output (default the In/out octet as a counter).
-#   -e option : in/out errors and discarded packets. -f must also be set.
+#   -f option : activate performance output. needed for all below options
+#   -Z option : in/out octet counters in peformance data
+#   -e option : in/out errors and discarded packets
+#      Warning - the counters needed by -e are not available on all devices
 #   -S option : Include speed in performance output in bits/s as '<interface_name>_speed_bps'
-#   -y option : output performance data in % of interface speed
-#   -Y option : output performance data in bits/s or Bytes/s (depending on -B)
+#   -y option : add in/out traffic as % of interface speed
+#   -Y option : add in/out traffic in bits/s or Bytes/s (depending on -B)
 #   Note : -y and -Y options need the usage check to ba active (-k)
-#   Warning : the counters needed by -e are not available on all devices
 #
 # Usage check
 #   -k : activates the standard usage feature
@@ -101,12 +102,12 @@
 #   -c : critical levels
 #
 #   If you specify '-k' a temporary file will be created in "/tmp" by default
-#   (unless -P option is also used, see below). Directory and start of filename
-#   can be set with '-F' option with result file being like
+#   (unless -P option is also used, see below). Directory and start of
+#   filename can be set with '-F' option with result file being like
 #     tmp_Nagios_int.<host IP>.<Interface name>, one file per interface
 #
-#   If you do "-k -P \$SERVICEPERFDATA\$ -T \$LASTSERVICECHECK\$" then no file
-#   is created and instead data from previous check is feed back into plugin.
+#   If you do "-k -P \$SERVICEPERFDATA\$ -T \$LASTSERVICECHECK\$" then no
+#   file is created and data from previous check is feed back into plugin.
 #
 #   The status UNKNOWN is returned when the script doesn't have enough
 #   information (see -d option). You will have to specify the warning and
@@ -141,19 +142,20 @@
 #        Out disc : warn/crit level in outbound discarded packets/minute
 #
 #  -d: delta time
-#     You can put the delta time as an option : the "delta" is the prefered time
-#     between two values that the script will use to calculate the average
-#     Kbytes/s or error/min. The delta time should (not must) be bigger than
-#     the check interval.
+#     You can put the delta time as an option : the "delta" is the expected
+#     time between two runs of the plugin that tell the plugin that values
+#     that the script will use to calculate the average Kbytes/s or
+#     error/min are ok. The delta time should (not must) be about 1.5
+#     bigger than nagios check interval.
 #     Here is an example : Check interval of 2 minutes and delta of 4min
 #        T0 : value 1 : can't calculate usage
 #        T0+2 : value 2 : can't calculate usage
 #        T0+4 : value 3 : usage=(value3-value1)/((T0+4)-T0)
 #        T0+6 : value 4 : usage=(value4-value2)/((T0+6)-T0+2)
 #        (Yes I know TO+4-T0=4, it's just to explain..)
-#     The script will allow 10% less of the delta and 300% more than delta
+#     The script will allow 25% less of the delta and 300% more than delta
 #     as a correct interval. For example, with a delta of 5 minutes, the
-#     acceptable interval will be between 4'30" and 15 minutes.
+#     acceptable interval will be between 4" and 15 minutes.
 #
 # Msg size option (-o option)
 #     In case you get a "ERROR: running table: Message size exceeded maxMsgSize"
@@ -166,14 +168,13 @@
 #     This option will put label before performance data value:
 #        Without : eth1:UP (10.3Kbps/4.4Kbps), eth0:UP (10.9Kbps/16.4Kbps):2 UP: OK
 #        With : eth1:UP (in=14.4Kbps/out=6.2Kbps), eth0:UP (in=15.3Kbps/out=22.9Kbps):2 UP: OK
-#     Note that old option name '--label' is being depreciated (and will be re-assined to
-#     different option later), you should start using '--label_intstatus' instead.
 #
-# Note: Do not rely on this option meaning same thing in the future, it may be
-#       changed to specify label to put prior to plugin output with this
-#       option changing to something else...
+#    Note: Do not rely on this option meaning same thing in the future.
+#          option name '--label' is being depreciated (and may be re-assined
+#          to different option later), you should start using
+#          '--label_intstatus' instead.
 #
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Below is documentation for options & features unique to check_snmp_netint
 # that were not part of check_snmp_int:
 #
@@ -270,7 +271,7 @@
 #     very useful diagnostic data if you're looking as to why no traffic is
 #     passing through particular interface...
 #
-# ============================ EXAMPLES =======================================
+# ============================ EXAMPLES =====================================
 #
 # First set of examples is from Patrick's site:
 #
@@ -363,7 +364,7 @@
 # one check to handle so if you have that many split checks into groups of
 # no more then 12 ports
 #
-# ======================= VERSIONS and CHANGE HISTORY =========================
+# ======================= VERSIONS and CHANGE HISTORY =======================
 #
 # [1.4] This plugin is based on (with now about 60% rewrite or new code)
 #       release 1.4 (somewhere around May 2007) of the check_snmp_int
@@ -448,11 +449,11 @@
 #       options -Y or -u or -S are given. Also fixed to make sure portpseed
 #	performance variable is only reported when '-S' option is given
 #	(however for caching speed data is also in 'cache_int_speed')
-# [2.16] 02/03/08 - Bug fixed in how timestamp array is saved by new algorithm,
-#       it would have resulted in only up to 2 previous data being used properly
+# [2.16] 02/03/08 - Fixed how timestamp array is saved by new algorithm, it
+#       would have resulted in only up to 2 previous data being used properly
 #       even if > 2 are actually available
-# [2.17] 04/02/08 - Bug fixes related to STP and Cisco port data extensions for
-#        cases when no data is returned for some or all of the ports
+# [2.17] 04/02/08 - Bug fixes related to STP and Cisco port data extensions
+#        for cases when no data is returned for some or all of the ports
 # [2.18] 04/03/08 - Rewrite of cisco additional port status data extensions.
 #        Now 3 tables: portOperStatus=1.3.6.1.4.1.9.5.1.4.1.1.6
 #		       portLinkFaultStatus = 1.3.6.1.4.1.9.5.1.4.1.1.22
@@ -470,7 +471,7 @@
 #
 # [2.20] 04/10/08 - Releasing 2.2 version as stable. No code changes but
 #                   documentation above has been updated
-# [2.201] 04/15/08 - Minor results text info issue (',' was not added before operstatus)
+# [2.201] 04/15/08 - Minor results text fix (',' was not added in operstatus)
 # [2.21] 06/10/08 - Minor fixes. Some documentation cleanup.
 #		    Option -S extended to allow specifying expected interface
 #		    speed with critical alert if speed is not what is specified
@@ -480,102 +481,129 @@
 #                      (instead of perfdata MACRO) for previous data
 #                    - _out_bps fixes for those who want to use that directly
 #                      for graphing instead of octet counter
-#                    - New option '-Z' to have octet count in performance data
-#                      instead of having this data by default (though this data
+#                    - New option '-Z' to add octet count in performance data
+#                      instead of having this data by default (though this
 #                      is required and added automaticly with -P option)
 #
-# [2.3]  12/15/10 - Various small fixes. Plus a patch sent by Tristan Horn to better
-#                   support minimum and maximum warning and critical thresholds
-# [2.31] 01/10/11 - Bug fix when reporting in_prct/out_prct performance metric
-# [2.32] 12/22/11 - Fixes for bugs reported by Joe Trungale and Nicolas Parpandet
-#		    Updates to check on existance of utils.pm and use but not require it
+# [2.3]  12/15/10 - Various small fixes. Plus a patch sent by Tristan Horn to
+#                   support minimum and maximum warning & critical thresholds
+# [2.31] 01/10/11 - Bug fix in reporting in_prct/out_prct performance metric
+# [2.32] 12/22/11 - Fixed bugs reported by Joe Trungale and Nicolas Parpandet
+#		    Updates to check on existance of utils.pm and use it when
+#                   present but do not require it
 #		    Patch by Steve Hanselman that adds "-I" option:
-#		      "I’ve attached a patch that adds an option to ignore interface status
-# 		       (this is useful when you’re monitoring a switch with user devices
-#		       attached that randomly power on and off but you still want
-#		       performance stats and alerts on bandwidth when in use)."
-# [2.34] 12/25/11 - Based on comments/requests on nagiosexchange, -z option has been added.
-#		    This option makes specifying thresholds with -w and/or -c optional
-#		    for those who want to use plugin primarily for data collection
-#		    and graphing. This was (and still can be) accomplished before by
-#		    specifying threshold value as 0 and then its not checked. Also the
-#		    use of -w and -c is unnecessary if you do not use -k or -q options.
-# [2.35] 04/19/12 - Added patch by Sébastien PRUD'HOMME which incorporates changes
-#                   and bug fixes in revsions 1.23 and 1.19 of check_snmp_int (done
-#                   after this plugin deverged from it) into this plugin as well.
-#                   The changes add proper support for 64-bit counters when -g
-#                   option is used and fix a bug when output is in % / perf in Bytes.
-# [2.36] 06/15/12 - 1) Added fixes suggested in modified version of this plugin created
-#		       by Yannick Charton to remove ^@ (NULL ?) and other not-ASCII
-#		       characters at the end of the interface description. This allows
-#		       to correctly match the network interface on some Windows servers.
-#		    2) Extended '-v' (debug/verbose) option so that instead of writing
-#		       to STDOUT people could specify a file to write debug output to.
-#		    3) Using of quotewords() in prev_perf as suggested by Nicholas Scott
-#		       allows to work with interfaces that have space in their name.
-#		       Due to this plugin now require Text::ParseWords perl library.
-#		    4) List of contributors created as a separate header section below.
+#		     "I’ve attached a patch that adds an option to ignore
+#                     interface status (this is useful when you’re monitoring
+#                     a switch with user device attached that randomly power
+#                     on and off but you still want performance stats and
+#                     alerts on bandwidth when in use)."
+# [2.34] 12/25/11 - Based on comments/requests on nagiosexchange, added
+#                   -z option makes which specifying thresholds with -w
+#                   and/or -c optional for those who want to use plugin
+#                   primarily for data collection and graphing. This was
+#                   (and still can be) accomplished before by specifying
+#                   threshold value as 0 and then its not checked. Also the
+#		    use of -w and -c is unnecessary without -k and -q.
+# [2.35] 04/19/12 - Added patch by Sébastien PRUD'HOMME which incorporates
+#                   changes and bug fixes in revsions 1.23 and 1.19 of
+#                   check_snmp_int (done after this plugin deverged from it)
+#                   into this plugin as well. The changes add proper support
+#                   for 64-bit counters when -g option is used and fix a bug
+#                   when output is in % / perf in Bytes.
+# [2.36] 06/15/12 - 1) Added fixes suggested in modification of this plugin
+#                      by Yannick Charton to remove ^@ (NULL ?) and other
+#                      non-ASCII characters at the end of the interface
+#                      description. This allows to correctly match the
+#                      network interface on some Windows servers.
+#		    2) Extended '-v' (debug/verbose) option so that instead
+#                      of writing to STDOUT people could specify a file to
+#                      write debug output to.
+#		    3) Adde quotewords() to prev_perf as suggested by
+#                      Nicholas Scott. This allows to work with interfaces
+#                      that have space in their name. Note that plugin will
+#                      now require Text::ParseWords perl library.
+#		    4) List of contributors put in new header section below.
 #
-# [2.4] alpha/beta  This are all development/alpha/beta releases. After completion of
-#                   development the new version of this plugin will be released as 3.0.
-#                   New features being added are support for getting data from network
-#                   interfaces on local machine rather than just by SNMP. Also support
-#		    getting data on average traffic (50-percentalile) and being able
-#		    to specify threshold based on deviation from this average. 
+# [2.4] alpha/beta  This are all development/alpha/beta releases. After
+#                   completion of development the new version of this plugin
+#                   will be released as 3.0. New features being added are
+#                   support for getting data from network interfaces on local
+#                   machine rather than just by SNMP. Also support getting
+#                   data on average traffic (50-percentalile) and specifying
+#		    thresholds based on deviation from this average. 
 # 2.4a1 - 07/07/12 - Implemented in this release:
-#		    1) The plugin has been renamed "check_netint" from "check_snmp_netint".
-#		       It can now check interfaces on a local Linux system and in the
-#		       future FreeBSD, Sun and other systems maybe supported too.
-#		       Checking of local interfaces happens if you do not specify -H and
-#		       snmp (-O, -C, etc) options and if plugin name does not start with
-#		       "check_snmp". For local interfaces options like --stp and --cisco
-#		       are not valid, and optimization options -m and -mm also do not
-#		       work same way since plugin will always get all data locally.
-#		    2) The plugin no longer requires -n (interface name) option
-#		       though it is still recommended you use it. When interface
-#		       name is not specified, all interfaces will be checked.
-#		    3) If with -F option directory is given instead of a file this
-#		       will become base directory to write temporary file to.
+#		    1) The plugin has been renamed "check_netint" from
+#                      "check_snmp_netint". It can now check interfaces
+#                      on a local Linux system and in the future FreeBSD,
+#                      Sun and other systems maybe supported too. Checking
+#		       of local interfaces happens if you do not specify -H
+#                      and snmp (-O, -C, etc) options and if plugin name
+#                      does not start with "check_snmp". For local check
+#                      options like --stp and --cisco are not valid, and
+#                      optimization options -m and -mm also do not work same
+#		       way since plugin will always get all data locally.
+#		    2) The plugin no longer requires -n (interface name)
+#                      option though it is still recommended you use it.
+#                      When interface name is not specified, all interfaces
+#                      will be checked.
+#		    3) If with -F option directory is given instead of a
+#                      file this will become base directory to write
+#                      temporary files to.
 #		    4) Many doc and code fixes and cleanups all over
-# 2.4a2 - 08/15/12 - Fixed bug with cache of previous data for SNMP queries that came
-#		     around due to change in logic and introduction of non-SNMP.
-#		     Added experimental support for future Nagios SAVEDDATA feature
-#		     (plugin output after || after perfdata) enabled with --nagios_with_saveddata
+# 2.4a2 - 08/15/12 - Fixed bugs with cache of previous data for SNMP queries
+#                    that appeare due to change in logic and introduction of
+#                    non-SNMP. Added experimental support for future Nagios
+#                    SAVEDDATA feature (plugin output after || after
+#                    perfdata) enabled with --nagios_with_saveddata
 # 2.4a3 - 09/13/12 - Patch/contrib by Franky Van Liedekerke:
-#		     1) Added option --admindown_ok: when checking for operational UP
-#                       interfaces, the interfaces that are administratively down are OK
-#                    2) The '-z' option now also prevents tmp files of being written
-#                       and removes the 'no usable data' warning because of missing perf data
-# 2.4a4 - 09/28/12 - Additional patch by FVL for --admindown_ok. Option also got -K one-letter alias.
-#		     Also added determining interface speed on linux with ethtool and iwconfig..
-# 2.4a5 - 10/10/12 - Interface speed can now be specified with -S/--intspeed option for use when
-#                    plugin can not find speed by itsef or when what it finds is wrong. Previously
-#		     this option was used to warn if speed is not what is expected, To do this now
-#                    requires using prefix WARNING<> or CRITICAL<> before actual speed which is
-#		     an incompatible change to preious format of this option.
-# 2.4a6 - 11/17/12 - Changed ok interval from 0.9*delta - 3*delta to 0.75*delta - 4*delta.
-#		     Fixed bug that would not output interface speed percent data in
-#                    perf unless both -y and -u were used together. This bug was introduced
-#		     somewhere around 2.2 and apparently 2.31 did not entirely fix it
-# 2.4a7 - 11/18/12 - Added support for SNMP bulk requests and --bulk_snmp_queries option
-# 2.4a8 - 11/21/12 - Another major code refactoring work to separate snmp-specific query
-#                    code into its own function (as well as new ifconfig processing
-#                    for linux local checks into its own function).
-# 2.4a9 - 11/30/12 - prev_perf() function added in place of directly accessing prev_perf hash
-#		     message size is reset to 5 times the default with --bulk_snmp_queries
-# 2.4b1 - 12/24/12 - bulk_snmp option extended with several settings and its made default
-#                    when -m/-mm are used and there are > 30 OIDs to be queried
-# 2.4b2 - 03/01/13 - Added --notfound_critical option to exit with CRITIAL instead of UNKNOWN
-#                    when interface is not found (this is for monitoring ppp and virtual interfaces)
-# 2.4b3 - 04/04/13 - Updated help text to not start line with "uses" which confuses rpmbuild
-#                    (issue reported by Roland Kool)
-# 2.4b4 - 06/25/13 - Added --juniper option which enables non-standards OIDs from comment by zen on nagiosexhange
-# 2.4b5 - 06/27/13 - Adding support for 50-percentile average calculated over long time period
+#		     1) Added option --admindown_ok: when checking for
+#                       operational UP interfaces, the interfaces that are
+#                       administratively down are OK
+#                    2) '-z' option now also prevents tmp files of being
+#                       written and removes the 'no usable data' warning
+#                       because of missing perf data
+# 2.4a4 - 09/28/12 - Additional patch by FVL for --admindown_ok. This ption
+#                    also got -K one-letter alias. Also added determining
+#                    interface speed on linux with ethtool and iwconfig..
+# 2.4a5 - 10/10/12 - Interface speed can now be specified with -S/--intspeed
+#                    option for use when plugin can not find speed by itsef
+#                    or when what it finds is wrong. Previously this option
+#                    was used to warn if speed is not what is expected - to
+#                    do this now requires usng prefiesx WARNING<> and
+#                    CRITICAL<> before actual speed which is an incompatible
+#                    change to preious format of this option.
+# 2.4a6 - 11/17/12 - Changed default ok interval from 0.9*delta - 3*delta to
+#                    0.75*delta - 4*delta. Fixed bug that would not output
+#                    interface speed percent data in perf unless both -y and
+#                    -u were used together. This bug was introduced somewhere
+#                    around 2.2 and apparently 2.31 did not entirely fix it
+# 2.4a7 - 11/18/12 - Added option --bulk_snmp_queries to support 
+#                    SNMP bulk requests. This is to be worked on further.
+# 2.4a8 - 11/21/12 - Another major code refactoring work to separate
+#                    snmp-specific query code into its own function
+#                    (as well as new ifconfig processing for linux local
+#                    checks into its own function).
+# 2.4a9 - 11/30/12 - prev_perf() function added in place of directly
+#                    accessing prev_perf has. message size is reset to
+#                    5 times the default with --bulk_snmp_queries
+# 2.4b1 - 12/24/12 - bulk_snmp option extended with several new settings
+#                    and it is made default when -m/-mm are used and
+#                    there are > 30 OIDs to be queried
+# 2.4b2 - 03/01/13 - Added --notfound_critical option to exit with CRITICAL
+#                    instead of UNKNOWN status when interface is not found 
+#                    (this is for monitoring ppp and virtual interfaces)
+# 2.4b3 - 04/04/13 - Updated help text to not start any line with "uses"
+#                    which confuses rpmbuild (issue reported by Roland Kool)
+# 2.4b4 - 06/25/13 - Added --juniper option which enables non-standards OID
+#                    based on info in comment by zen on nagiosexhange
+# 2.4b5 - 06/27/13 - Adding support for 50-percentile average calculated
+#                    over long time period. Calculations and status and
+#                    performance output are added but not yet thresholds.
 #
-# ============================ LIST OF CONTRIBUTORS ===============================
+# ============================ LIST OF CONTRIBUTORS =========================
 #
-# The following individuals have contributed code, patches, bug fixes and ideas to
-# this plugin (listed in last-name alphabetical order):
+# The following individuals have contributed code, patches, bug fixes and
+# ideas to this plugin (listed in last-name alphabetical order):
 #
 #    M. Berger
 #    Yannick Charton
@@ -594,7 +622,7 @@
 #
 # Open source community is grateful for all your contributions.
 #
-# ============================ START OF PROGRAM CODE =============================
+# ============================ START OF PROGRAM CODE ========================
 
 use strict;
 use Getopt::Long;
@@ -696,9 +724,9 @@ my @o_warn_extra=       undef;  # warning levels of perfcheck (for min-max/extra
 my @o_crit_min=         undef;  # critical levels of perfcheck
 my @o_crit_max=         undef;  # critical levels of perfcheck
 my @o_crit_extra=       undef;  # critical levels of perfcheck
-my $o_checkperf=        undef;	 # checks in/out/err/disc values
-my $o_delta=              300;	 # delta of time of perfcheck (default 5min)
-my $o_ext_checkperf=	 undef;  # extended perf checks (+error+discard)
+my $o_checkperf=        undef;	# checks in/out/err/disc values
+my $o_delta=              300;	# delta of time of perfcheck (default 5min)
+my $o_ext_checkperf=	undef;  # extended perf checks (+error+discard)
 my $o_highperf=         undef;  # Use 64 bits counters
 my $o_meg=              undef;  # output in MBytes or Mbits (-M)
 my $o_gig=              undef;  # output in GBytes or Gbits (-G)
@@ -719,22 +747,22 @@ my $o_traffavg=		 undef;  # New v2.4 option that allows to keep track of average
 my $traffavg_timerange=1440;    # Range of time over which to average in minutes
 my $traffavg_alertstart=720;    # How much traffic data is enough in minutes
 
-# WL: These are for previous performance data that nagios can send data to the plugin
-# with $SERVICEPERFDATA$ macro (and $SERVICESAVEDDATA$ for future naios versions).
-# This allows to calculate traffic without temporary file and also used to cache
-# SNMP table info so as not to retreive it every time
+# These are for previous performance data so that nagios can feed it back toi
+# the plugin with $SERVICEPERFDATA$ macro (and $SERVICESAVEDDATA$ for future
+# naios versions). This allows to calculate traffic without temporary file
+# and also used to cache SNMP table info so as not to retreive it every time
 my $o_prevperf=		undef;	 # performance data given with $SERVICEPERFDATA$ macro
 my $o_prevtime=         undef;  # previous time plugin was run $LASTSERVICECHECK$ macro
 my @o_minsnmp=		();      # see below
 my $o_minsnmp=		undef;	 # minimize number of snmp queries
 my $o_maxminsnmp=	undef;   # minimize number of snmp queries even futher (slightly less safe in case of switch config changes)
 my $o_bulksnmp=		undef;	 # do snmp bulk request
-my $o_filestore=        "";     # path of the file to store cached data in - overrides $o_base_dir
+my $o_filestore=        "";      # path of the file to store cached data in - overrides $o_base_dir
 my $o_pcount=		2;	 # how many sets of previous data should be in performance data
 my $o_nagios_saveddata=	undef;	 # enabled SAVEDDATA special output after ||
 
 # These are unrelated WL's contribs to override default description OID 1.3.6.1.2.1.2.2.1.2 and for stp and cisco m[a|y]stery
-my $o_descroid=         undef;  # description oid, overrides $descr_table
+my $o_descroid=         undef;   # description oid, overrides $descr_table
 my $o_commentoid=	undef;   # comment text oid, kind-of like additional label text
 my $o_ciscocat=		undef;	 # enable special cisco catos hacks
 my %o_cisco=		();	 # cisco options
@@ -891,34 +919,40 @@ Note : when multiple interfaces are selected with regexp,
 
 Threshold Checks and Performance Data options:
 
--f, --perfparse
-   Perfparse compatible output (no output when interface is down).
--e, --error
-   Add error & discard to Perfparse output
+-f, --perfparse 
+   Enables performance data output. Required for options below:
+-e, --error; -Z, --perfoctet; -y, --perfprct ; -Y, --perfspeed
+   -Z : output performance data in octets i.e. bytes
+   -e : output error & discard to perfparse output
+   -y : output performance data in % of max speed. Requires -S and -k or -z
+   -Y : output performance data in bits/s or Bytes/s (if -B).
+        Can not be used with -y. Requires -k or -z
 -S, --intspeed[=[OK|WARNING|CRITICAL<>]1000000Kb|100000000Kb|100000000Kb|10Mb|100Mb|1000Mb]
-   If -S is used by itself, this adds speed in performance output in bits/s.
-   Full option also allows to specify speed of the interface if it can not be found by plugin
-   or if what plugin determined is wrong. Be carefull, if you're checking multiple interfaces,
-   this will override and set speed for all of them. Additionally if you prefix speed with
-   WARNING<> or CRITICAL<> the alert will be issued if speed is not what is expected.
-      IMPORTANT: Prior to version 2.4 of this plugin if you specified speed after --intspeed=
-                 then instead of overriding it would issue a critical alert if speed is not
-                 the same (CRITICAL<> behavior). You must specify alert type before speed now.
--y, --perfprct ; -Y, --perfspeed ; -Z, --perfoctet
-   -y : output performance data in % of max speed
-   -Y : output performance data in bits/s or Bytes/s (depending on -B)
-   -Z : output performance data in octets i.e. bytes (always so with -P)
--k, --perfcheck ; -q, --extperfcheck
-   -k check (or just show on status line if -z) the input/ouput bandwidth of the interface
-   -q also check and show the error and discard input/output data
---label_intstatus | --label (to be depreciated in next version, star using --label_intstatus)
+   If -S is used by itself and with -f, this adds speed in performance
+   output in bits/s. The option also allows to specify speed of the
+   interface if it can not be found by plugin or if what plugin determined
+   is wrong. Be carefull, if you're checking multiple interfaces as this
+   will override and set speed for all of them. Additionally if you prefix
+   speed with WARNING<> or CRITICAL<> the alert will be issued if speed is
+   not what is expected.
+      IMPORTANT: Prior to version 2.4 of this plugin if you specified speed
+      after --intspeed= then instead of overriding it would issue a critical
+      alert if speed is not the same. This now requires CRITICAL<> prefix
+-k, --perfcheck ; -q, --extperfcheck; -z, ---zerothresholds
+   -z : calculate (and show on status line) input/outut bandwidth
+        but do not check with thresholds
+   -k : calculate and check the input/ouput bandwidth of the interface
+   -q : also check and show the error and discard input/output data
+--label_intstatus | --label (to be depreciated in next version, 
+                             so start using only --label_intstatus)
    Add label before speed in output : in=, out=, errors-out=, etc...
 -B, --kbits
-   Make the warning and critical levels in K|M|G Bits/s instead of K|M|G Bytes/s
+   Make the warning and critical threshold levels in K|M|G Bits/s 
+   instead of K|M|G Bytes/s. Aso effects -y performane data option.
 -G, --giga ; -M, --mega ; -u, --prct
    -G : Make the warning and critical levels in Gbps (with -B) or GBps
    -M : Make the warning and critical levels in Mbps (with -B) or MBps
-   -u : Make the warning and critical levels in % of reported max interface speed.
+   -u : Make the warning and critical levels in % of max interface speed.
 -w, --warning=input[/avg%],output[/avg%][,error_in,error_out,discard_in,discard_out]
    warning level for input / output bandwidth (0 for no warning)
      unit depends on B,M,G,u options (see above)
@@ -930,24 +964,22 @@ Threshold Checks and Performance Data options:
      unit depends on B,M,G,u options (see above)
      range can be specified as min-max
    error_in/out and discard_in/out thresholds require -q
-   avg% in/out requires -A (see below) and activates only if there are enough samples
+   avg% in/out requires -A and activates only if there are enough samples
 -A, --avgtraffic[=timerange_minutes,alertstart_minutes]
-   Calculate average 50-percentile traffic over long period. Timerange is normal
-   timeperiod over which to average - default is 1440 minutes = 1 day. When there
-   are enough data (alertstart - 720 minutes is default) this enables alert based
-   on amount of traffic as percent of avg, specified after '/' in -w and -c
-   which overrides one before / when enabled (good valies there are 50%, 100% or 200%)
--z, --zerothresholds
-   if warning and/or critical thresholds are not specified, assume they are 0
-   i.e. do not check thresholds, but still give input/ouput bandwidth for graphing
-   This option also prevents tmp files from being written.
+   Calculate average 50-percentile traffic over long period. Timerange is
+   period in minutes over which to average - default is 1440 minutes = 1 day.
+   When there is enough data (alertstart - 720 minutes is default) this
+   enables alert based on amount of traffic as percent of avg, specified
+   after '/' in -w and -c which then overrides threshold before /.
+   (good valies there are 50%, 100% or 200%). With -f also writes the
+   averages data to perfout.
 
-Options for saving results of previous checks to calculate Traffic & Utilization:
+Options specifying how results of previous checks needed to calculate Traffic & Utilization are saved and used:
 
 -P, --prev_perfdata
    Previous performance data (normally put '-P \$SERVICEPERFDATA\$' in nagios
-   command definition). This is used in place of temporary file that otherwise
-   could be needed when you want to calculate utilization of the interface
+   command definition). Used in place of temporary file that otherwise
+   would be needed when you want to calculate utilization of the interface
    Also used to cache data about which OIDs to lookup instead of having
    to check interface names table each time.
 -T, --prev_checktime
@@ -962,27 +994,25 @@ Options for saving results of previous checks to calculate Traffic & Utilization
    would not be kept.
 -d, --delta=seconds_avg|min_seconds,max_seconds[,WARN]
    Default: 300 seconds = 5 minutes
-   Specifies expected time between plugin runs. If only one number is specified
-   it is the expected avarage. If two numbers, the first is minimum acceptable
-   time between checks and 2nd is largest accepable time, after that plugin will
-   discard previous results. If only one numbers then miniimum is 0.75*avg
-   where avg is speified number. Max is then 4x specified avg number.
-   If this ends with 'WARN' then plugin will give a warning in case their
-   plugin is re-run too slow or too fast and it so it can't use resuts based
-   on specified min and max vaues.
+   Specifies expected time between plugin runs. If two numbers, the first
+   is minimum acceptable time between checks and 2nd is largest accepable
+   time, after that plugin will discard previous results. If only one number    it is taken as average and then minimum is 0.75*avg and Max is then
+   4x specified avg number. If this ends with 'WARN' then plugin will
+   give a warning in case their plugin is re-run too slow or too fast
+   and it so it can't use resuts based on specified min and max values.
 -F, --filestore[=<filename>|<directory>]
    When you use -P option that causes plugin to use previous performance data
    that is passed as an argument to plugin to calculate in/out bandwidth
    instead of storing data in temporary file. This option is an alternative
    to -P and causes results of previous check to be saved in a file.
    If this option has a parameter and it is a directory, then temporary
-   file will be saved in this directory, otherwise /tmp is used.
+   file will be saved in that directory, otherwise /tmp is used.
    If parameter is a filename then it is used as a first part in
    how temporary file is named.
 --nagios_with_saveddata
-   Enables experimental support for future Nagios SAVEDATA (output after ||)
-   where cached data for next plugin use goes to special buffer and not PERFDATA
-   [THIS IS AN EXPERIMENTAL OPTION THAT MAY BE REMOVED OR RENAMED IN THE FUTURE]
+   Enables support for future Nagios SAVEDATA (output after ||) where cached
+   data for next plugin use goes to special buffer and not part of perfdata.
+   [THIS IS AN EXPERIMENTAL OPTION MAY BE REMOVED OR RENAMED IN THE FUTURE]
 
 SNMP Authentication options and options valid only with SNMP:
 
@@ -1024,34 +1054,40 @@ SNMP Authentication options and options valid only with SNMP:
    sure ifindex description is still the same (not safe only if you add vlans)
 --bulk_snmp_queries[=optimize|std|on|off]
    Enables or disables using GET_BULK_REQUEST to retrieve SNMP data. Options:
-     'on' will always try to use BULK_REQUESTS
-     'off' means do not use BULK_REQUESTS at all
-     'std' means queries are used to get table with snmp v2 and v3 but not get requests
-     'optimize' means queries are used for table and for get requests of > 30 OIDs
-   Default setting (if --bulk_snmp_queries is not specified) is 'std' without -m or -mm
-   and 'optimize' if -m or --mm options are specified. If you specify --bulk_snmp_queries
-   without text option after =, this enables 'optimize' even if -m or -mm are not used.
+       'on' means always try to use BULK_REQUESTS
+       'off' means do not use BULK_REQUESTS at all
+       'std' means queries are used to get table with snmp v2 and v3 but
+             not get requests
+  'optimize' means queries are used for table and get requests with > 30 OIDs
+   Default setting (if --bulk_snmp_queries is not specified) is 'std' without
+   -m or -mm and 'optimize' if -m or --mm options are specified. If you
+   specify --bulk_snmp_queries without text option after =, this enables
+  'optimize' even withouth -m or -mm options.
 --cisco=[oper,][addoper,][linkfault,][use_portnames|show_portnames]
    This enables special cisco snmp additions which:
-   1) Provide extra detail on operational and fault status for physical ports.
-      There are 3 tables that are available: 'operStatus','AdditionalOperStatus',
-      'LinkFaultStatus' (some switches have one, some may have all 3), if you do
-      not specify an attempt will be made for all tables but if caching is used
-      what is found available will be cached for future requests.
-   2) Optional "use_portnames" argument means that instead of using normal SNMP
-      description OID table (or the one you could supply with -N) it would match
-      names with port description names that you set with with 'set port name',
-      this does however restrict to only cisco module ports (ifindex maybe larger
-      and include also non-port interfaces such as vlan).
-   3) Optional "show_portname" causes port names to go as comments (do not use with -O)
+   1) Provide extra detail on operational and fault status of physical ports
+      There are 3 tables that are available: 'operStatus',
+      'AdditionalOperStatus','LinkFaultStatus'. Some switches may have
+      just one of these, some some may have all 3. If you do not specify
+      an attempt will be made to check all tables but if caching is used
+      what is found to be available will be cached for future requests.
+   2) Optional "use_portnames" argument means that instead of using normal
+      SNMP description OID table (or the one you could supply with -N) it
+      would match names with port description names that you set with with
+      'set port name', this does however restrict to only cisco module ports
+      and ifindex maybe large and include other interfaces such as vlans.
+   3) Optional "show_portname" causes port names to go as comments.
+      (do not use with -O which also has similar behavior)
 --juniper
-   This enables non-standard snmp OIDs used by some Juniper devices. The non-standard
-   tables are for operational status, port desription, in-octets and out-octets.
+   This enables non-standard snmp OIDs used by some Juniper devices.
+   The non-standard tables are for operational status, port desription,
+   in-octets and out-octets tables.
 --stp[=disabled|blocking|listening|learning|forwarding|broken]
-   This enables reporting of STP (Spanning Tree Protocol) switch ports states.
-   If STP port state changes then plugin for period of time (default 15 minutes)
-   reports WARNING. Optional parameter after --stp= is expected STP state of
-   the port and plugin will return CRITICAL error if its anything else.
+   Enables reporting of STP (Spanning Tree Protocol) switch ports states.
+   If STP port state changes then plugin for period of time (default 15
+   minutes) reports WARNING. Optional parameter after --stp= is expected
+   STP state of the port and plugin will return CRITICAL error if it is
+   anything else.
 EOT
 }
 
@@ -1289,12 +1325,15 @@ sub check_options {
     if (!defined($o_timeout)) {$o_timeout=5;}
 
     # check if -e without -f
-    if ( defined($o_perfe) && !defined($o_perf))
-        { print "Cannot output error without -f option!\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}		
-	if (defined ($o_perfr) && defined($o_perfp) )  {
-	    print "-Y and -y options are exclusives\n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
-	if ((defined ($o_perfr) || defined($o_perfp) || defined($o_perfo)) && !defined($o_checkperf))  {
-	    print "Cannot put -Y or -y or -Z options without perf check option (-k) \n"; print_usage(); exit $ERRORS{"UNKNOWN"}}
+    if ((defined($o_perfe) || defined($o_perfr) || defined($o_perfo) || defined($o_perfp)) && !defined($o_perf)) {
+       print "Cannot use -o, -Y, -y, -e without -f option!\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
+     }
+     if (defined ($o_perfr) && defined($o_perfp))  {
+       print "-Y and -y options are exclusives\n"; print_usage(); exit $ERRORS{"UNKNOWN"};
+     }
+     if ((defined ($o_perfr) || defined($o_perfp)) && (!defined($o_checkperf)&& !defined($o_zerothresholds)))  {
+       print "Cannot put -Y or -y options without check option (-k or -z) \n"; print_usage(); exit $ERRORS{"UNKNOWN"};
+    }
     if (defined ($o_short)) {
       #TODO maybe some basic tests ? characters return empty string
     }
@@ -2076,7 +2115,7 @@ sub getdata_snmp {
 	    $oid_stpstate[$i] = $stp_dot1dbase_portstate . $stpport[$i] if $stpport[$i];
 	 }
 	 # Put the performance oid
-	 if (defined($o_perf) || defined($o_checkperf)) {
+	 if (defined($o_perf) || defined($o_checkperf) || defined($o_zerothresholds)) {
 	    $oid_perf_inoct[$i]= $in_octet_table . $tindex[$i];
 	    $oid_perf_outoct[$i]= $out_octet_table . $tindex[$i];
 	    if (defined($o_ext_checkperf) || defined($o_perfe)) {
@@ -2101,7 +2140,7 @@ sub getdata_snmp {
       }
 
       # put them all together and do as one query when -m option is used
-      if (defined($o_perf) || defined($o_checkperf) || defined($o_intspeed)) {
+      if (defined($o_perf) || defined($o_checkperf) || defined($o_zerothresholds) || defined($o_intspeed)) {
 	 @oid_perf=(@oid_perf_outoct,@oid_perf_inoct,@oid_speed);
 	 if (defined($o_highperf)) {
 	    @oid_perf=(@oid_perf,@oid_speed_high);
@@ -2131,7 +2170,7 @@ sub getdata_snmp {
 
       # If not doing it as one query, do additional queries
       # to get the perf value if -f (performance) option defined or -k (check bandwidth)
-      if ((defined($o_perf) || defined($o_checkperf) || defined($o_intspeed)) && !defined($o_minsnmp)) {
+      if ((defined($o_perf) || defined($o_checkperf) || defined($o_zerothresholds) || defined($o_intspeed)) && !defined($o_minsnmp)) {
 	 snmp_get_request($session, \@oid_perf, "statistics table", $results, $do_bulk_snmp);
       }
       # and additional cisco status tables
@@ -2188,7 +2227,7 @@ sub getdata_snmp {
 	     $interfaces[$i]{'out_errors'}=0;
 	     $interfaces[$i]{'in_dropped'}=0;
 	     $interfaces[$i]{'out_dropped'}=0;
-	     if (defined($o_ext_checkperf)) { # Add other values (error & disc)
+	     if (defined($o_ext_checkperf) || defined($o_perfe)) { # Add other values (error & disc)
 		$interfaces[$i]{'in_errors'}=$results->{$oid_perf_inerr[$i]} if defined($results->{$oid_perf_inerr[$i]});
 		$interfaces[$i]{'out_errors'}=$results->{$oid_perf_outerr[$i]} if defined($results->{$oid_perf_outerr[$i]});
 		$interfaces[$i]{'in_dropped'}=$results->{$oid_perf_indisc[$i]} if defined($results->{$oid_perf_indisc[$i]});
@@ -2795,7 +2834,7 @@ for (my $i=0;$i < $num_int; $i++) {
     $num_admindown++;
   }
   # Don't return performance data for interfaces that are down and are supposed to be down
-  if (!(defined($o_admindown_ok) && $ok_val==1 && $int_status == $status{'DOWN'} && $admin_int_status == $status{'DOWN'}) && defined($interfaces[$i]{'descr'}) && (defined($o_perf) || defined($o_intspeed) || defined($o_perfr) || defined($o_perfp) || defined($o_checkperf))) {
+  if (!(defined($o_admindown_ok) && $ok_val==1 && $int_status == $status{'DOWN'} && $admin_int_status == $status{'DOWN'}) && defined($interfaces[$i]{'descr'}) && (defined($o_perf) || defined($o_intspeed) || defined($o_perfr) || defined($o_perfp) || defined($o_checkperf) || defined($o_zerothresholds))) {
     if (defined ($o_perfp)) { # output in % of speed
 	if ($data_not_usable==0 && defined($checkperf_data[0]) && defined($checkperf_data[1])) {
 	    if (defined($o_prct)) {
@@ -2873,20 +2912,26 @@ for (my $i=0;$i < $num_int; $i++) {
         $saved_out .= " ".perf_name($descr,"in_octet")."=". $interfaces[$i]{'in_bytes'};
         $saved_out .= " ".perf_name($descr,"out_octet")."=". $interfaces[$i]{'out_bytes'};
     }
-    if (defined ($o_perfe) && defined($o_ext_checkperf)) {
+    if (defined ($o_perfe) || (defined($o_ext_checkperf) && defined($o_prevperf) && !defined($o_nagios_saveddata))) {
 	# these are techinically counters too, but its better to have them graphed as total
         $perf_out .= " ".perf_name($descr,"in_error")."=". $interfaces[$i]{'in_errors'};
         $perf_out .= " ".perf_name($descr,"out_error")."=". $interfaces[$i]{'out_errors'};
         $perf_out .= " ".perf_name($descr,"in_discard")."=". $interfaces[$i]{'in_dropped'} if defined ($interfaces[$i]{'in_dropped'});
         $perf_out .= " ".perf_name($descr,"out_discard")."=". $interfaces[$i]{'out_dropped'} if defined ($interfaces[$i]{'out_dropped'});
     }
+    if (defined($o_ext_checkperf) && defined($o_prevperf) && defined($o_nagios_saveddata)) {
+        $saved_out .= " ".perf_name($descr,"in_error")."=". $interfaces[$i]{'in_errors'};
+        $saved_out .= " ".perf_name($descr,"out_error")."=". $interfaces[$i]{'out_errors'};
+        $saved_out .= " ".perf_name($descr,"in_discard")."=". $interfaces[$i]{'in_dropped'} if defined ($interfaces[$i]{'in_dropped'});
+        $saved_out .= " ".perf_name($descr,"out_discard")."=". $interfaces[$i]{'out_dropped'} if defined ($interfaces[$i]{'out_dropped'});
+    }
     if (defined($interfaces[$i]{'portspeed'}) && defined($o_perf) && defined($o_intspeed)) {
         $perf_out .= " ".perf_name($descr,"speed_bps")."=".$interfaces[$i]{'portspeed'};
     }
-    if (defined($o_traffavg)) {
+    if (defined($o_traffavg) && defined($interfaces[$i]{'tavg_in_perc_current'}) && define($interfaces[$i]{'tavg_out_perc_current'})) {
         # TODO: add threshhold after ; for these when they are available
-        $perf_out.=" ".perf_name($descr,'in_perc_avg').'='.$interfaces[$i]{'tavg_in_perc_current'}.'%';
-        $perf_out.=" ".perf_name($descr,'out_perc_avg').'='.$interfaces[$i]{'tavg_out_perc_current'}.'%';
+        $perf_out .= " ".perf_name($descr,'in_perc_avg').'='.$interfaces[$i]{'tavg_in_perc_current'}.'%';
+        $perf_out .= " ".perf_name($descr,'out_perc_avg').'='.$interfaces[$i]{'tavg_out_perc_current'}.'%';
     }
   }
 }
@@ -2929,8 +2974,10 @@ if (defined($o_prevperf) && $o_pcount>0) {
          $tavg_stime_next .= $timenow - $traffavg_timerange;
       }
       $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_stime').'='.$tavg_stime_next;
-      $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_in_bytes_sec').'='.$interfaces[$i]{'tavg_in_bytes_sec'};
-      $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_out_bytes_sec').'='.$interfaces[$i]{'tavg_out_bytes_sec'};
+      if (defined($interfaces[$i]{'tavg_in_bytes_sec'}) && defined($interfaces[$i]{'tavg_out_bytes_sec'})) {
+         $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_in_bytes_sec').'='.$interfaces[$i]{'tavg_in_bytes_sec'};
+         $saved_out.=" ".perf_name($interfaces[$i]{'descr'},'tavg_out_bytes_sec').'='.$interfaces[$i]{'tavg_out_bytes_sec'};
+      }
     }
   }
   $saved_out .= " ptime=".$timenow;
@@ -2957,7 +3004,7 @@ else {
   $exit_status="CRITICAL";
   print $print_out,": ", $num_int-$num_ok-$num_admindown, " int NOK : CRITICAL";
 }
-print " | ",$perf_out if defined($perf_out) && $perf_out;
+print " |",$perf_out if defined($perf_out) && $perf_out;
 if (defined($saved_out) && $saved_out) {
 	print " ||" if defined($o_nagios_saveddata);
 	print $saved_out;
