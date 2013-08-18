@@ -3,8 +3,8 @@
 # ============================== SUMMARY =====================================
 #
 # Program  : check_files.pl
-# Version  : 0.41
-# Date     : Mar 23, 2013
+# Version  : 0.421
+# Date     : Aug 20, 2013
 # Author   : William Leibzon - william@leibzon.org
 # Summary  : This is a nagios plugin that counts files in a directory and
 #            checks their age an size. Various thresholds on this can be set.
@@ -133,9 +133,16 @@
 #  [0.39] Jan 23, 2013 - Added -H option for execute ls -l by ssh (Patrick Bailat)
 #  [0.40] Feb 10, 2013 - Documentation cleanup. New release.
 #  [0.41] Mar 23, 2013 - Fixed bug in parse_threshold function
+#  [0.416] May 3, 2013 - Fixed bugs reported by Joerg Heinemann that caused
+#                        failures under embedded perl. Bugs were in
+#                        open_shell_stream() and parse_lsline() functions 
+#  [0.417] Jun 17, 2013 - More bug fixes that showed up with embedded perl
+#  [0.42] July 30, 2013 - Several bugs fixed. Main was git issue #36 by 
+#                         bradcavanagh when -l is used and no files in directory.
+#  [0.421] Aug 20, 2013 - More bug fixes for embedded perl, see issue #32
 #
-#  TODO: This plugin is using early threshold check code that became the base of
-#        Naglio library and should be updated to use this library.
+#  TODO: This plugin is using early threshold check code that became the base
+#        of Naglio library and should be updated to use the library later
 #
 # ========================== LIST OF CONTRIBUTORS =============================
 #
@@ -166,7 +173,7 @@ if ($@) {
  %ERRORS = ('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 }
 
-my $Version='0.41';
+my $Version='0.421';
 
 my $o_help=         undef; # help option
 my $o_timeout=      10;    # Default 10s Timeout
@@ -222,6 +229,12 @@ sub perf_name {
   my $iname = shift;
   $iname =~ s/'\/\(\)/_/g; #' get rid of special characters in performance description name
   return "'".$iname."'";
+}
+
+sub todebugstr {
+  my $in = shift;
+  return 'undef' if !defined($in);
+  return $in;
 }
 
 # help function used when checking data against critical and warn values
@@ -357,9 +370,9 @@ File and Directory Selection options:
     only files you specified with -F where as by default 'ls -l' will
     list all files in directory and choose some with regex. This option
     should be used if there are a lot of files in a directory.
-    WARNING: using this option will cause -r not to work on most system
+    WARNING: using this option will cause -r not to work on most systems
 
-Exection Options:
+Execution Options:
 
 -C, --cmd=STR
     By default the plugin will chdir to specified directory, do 'ls -l'
@@ -517,8 +530,8 @@ sub check_options {
     }
 
     if ((defined($o_stdin) && defined($o_cmd)) ||
-	(defined($o_stdin) && defined($o_host)) ||
-	(defined($o_host) && defined($o_cmd))) {
+        (defined($o_stdin) && defined($o_host)) ||
+        (defined($o_host) && defined($o_cmd))) {
         print "Can use only one of -C or -I or -H\n";
         print_usage();
         exit $ERRORS{"UNKNOWN"};
@@ -536,27 +549,28 @@ sub parse_filespec {
 # ls -l line example:
 #   -rwxr-xr-x  1 WLeibzon users    21747 Apr 20 23:04 check_files.pl
 sub parse_lsline {
-    my @parsed = split (/\s+/, shift);
+    my $line = shift;
+    my @parsed = split (/\s+/, $line);
     my %ret = ('type' => 'unset');
-    my $mod = 0;
     # parse file mode into std number
     if (defined($parsed[0]) && $parsed[0] =~ /([-d])(.{3})(.{3})(.{3})/) {
-        if ($1 eq 'd') {
+        my ($file_type,$mod_user, $mod_group, $mod_all) = ($1,$2,$3,$4);
+        if ($file_type eq 'd') {
             $ret{'type'}='dir';
         }
         else {
             $ret{'type'}='file';
         }
-        $mod += 400 if $2 =~ /r/;
-        $mod += 200 if $2 =~ /w/;
-        $mod += 100 if $2 =~ /x/;
-        $mod += 40 if $3 =~ /r/;
-        $mod += 20 if $3 =~ /w/;
-        $mod =~ 10 if $3 =~ /x/;
-        $mod =~ 4 if $4 =~ /r/;
-        $mod =~ 2 if $4 =~ /w/;
-        $mod =~ 1 if $4 =~ /x/;
-        $ret{'mode'} = $mod;
+        $ret{'mode'} = 0;
+        $ret{'mode'} += 400 if $mod_user =~ /r/;
+        $ret{'mode'} += 200 if $mod_user =~ /w/;
+        $ret{'mode'} += 100 if $mod_user =~ /x/;
+        $ret{'mode'} += 40 if $mod_group =~ /r/;
+        $ret{'mode'} += 20 if $mod_group =~ /w/;
+        $ret{'mode'} += 10 if $mod_group =~ /x/;
+        $ret{'mode'} += 4 if $mod_all =~ /r/;
+        $ret{'mode'} += 2 if $mod_all =~ /w/;
+        $ret{'mode'} += 1 if $mod_all =~ /x/;
 
         $ret{'nfiles'} = $parsed[1] if defined($parsed[1]); # number of files, dir start with 2
         $ret{'user'} = $parsed[2] if defined($parsed[2]);
@@ -565,6 +579,9 @@ sub parse_lsline {
         $ret{'time_line'} = $parsed[5].' '.$parsed[6].' '.$parsed[7] if defined($parsed[5]) && defined($parsed[6]) && defined($parsed[7]);
         $ret{'filename'} = $parsed[8] if defined($parsed[8]);
         $ret{'time'} = str2time($ret{'time_line'}) if defined($ret{'time_line'});
+    }
+    elsif ($line =~ /No such file or directory/) {
+	$ret{'nofilesfound'}=1;
     }
     return \%ret;
 }
@@ -592,7 +609,7 @@ sub open_shell_stream {
 
   if (defined($o_stdin)) {
     $shell_command = "<stdin>";
-    $shell_command_ref = $shell_command if defined($shell_command_ref);
+    $$shell_command_ref = $shell_command if defined($shell_command_ref);
     return \*STDIN;
   }
   else {
@@ -615,9 +632,12 @@ sub open_shell_stream {
         if(defined($o_host)) {
             $shell_command = "ssh -o BatchMode=yes -o ConnectTimeout=30 ".$o_host." ";
         }
-        verb("Command: ".$shell_command);
+        else {
+            $shell_command = "";
+        }
         $shell_command .= $cd_dir if defined($cd_dir);
         $shell_command .= "LANG=C ls -l";
+        verb("Command: ".$shell_command);
     }
     $shell_command .= " -R" if defined($o_recurse);
     $shell_command .= " ".join(" ",@o_filesLv) if defined($o_lsfiles);
@@ -687,13 +707,13 @@ $READTHIS = open_shell_stream(\$shell_command);
 while (<$READTHIS>) {
     chomp($_);
 
-    verb("got line: $_");
     $ls[$nlines]=parse_lsline($_);
+    # $ls[$nlines]{'ls_text'}=$_;
 
-    foreach my $k (keys %{$ls[$nlines]}) {
-        $temp .= ' '.$k .'='. $ls[$nlines]{$k};
-    }
-    verb ("    parsed:".$temp);
+    verb('got line: '.$_);
+    $temp=""; # these 3 lines are all for debug output
+    $temp .= ' '.$_.'='. $ls[$nlines]{$_} foreach (keys %{$ls[$nlines]});
+    verb ("  processed:".$temp);
 
     if (defined($ls[$nlines]{'filename'}) && (!defined($o_filetype) ||
        (defined($o_filetype) && $ls[$nlines]{'type'} eq $o_filetype))) {
@@ -733,23 +753,28 @@ while (<$READTHIS>) {
     }
     $nlines++;
 }
-
-if (!defined($o_stdin) && !close(SHELL_DATA)) {
-    print "UNKNOWN ERROR - execution of $shell_command resulted in an error $? - $!";
-    exit $ERRORS{'UNKNOWN'};
+if (defined($ls[0]{'nofilesfound'}) && $ls[0]{'nofilesfound'}) {
+   close($READTHIS) if defined($o_stdin);
+   $nlines=1;
 }
+else {
+    if (!defined($o_stdin) && defined($READTHIS) && !close($READTHIS)) {
+       print "UNKNOWN ERROR - execution of $shell_command resulted in an error $? - $!";
+       exit $ERRORS{'UNKNOWN'};
+    }
 
-if ($nlines eq 0) {
-    print "UNKNOWN ERROR - did not receive any results";
-    exit $ERRORS{'UNKNOWN'};
+    if ($nlines eq 0) {
+       print "UNKNOWN ERROR - did not receive any results";
+       exit $ERRORS{'UNKNOWN'};
+    }
 }
 
 # Check time
 my $tnow = time();
-verb("Date ".$tnow." Oldest_filetime: ".$oldest_filetime." Newest_filetime: ".$newest_filetime);
+verb("Date ".$tnow." Oldest_filetime: ".todebugstr($oldest_filetime)." Newest_filetime: ".todebugstr($newest_filetime));
 my $oldest_secold=$tnow-$oldest_filetime if defined($oldest_filetime);
 my $newest_secold=$tnow-$newest_filetime if defined($newest_filetime);
-verb("Oldest file has age of ".$oldest_secold." seconds and newest ".$newest_secold." seconds");
+verb("Oldest file has age of ".$oldest_secold." seconds and newest ".$newest_secold." seconds") if defined($oldest_secold) && defined($newest_secold);
 if (defined($o_age) && defined($oldest_secold)) {
     if (defined($o_age_crit) && ($chk = check_threshold($oldest_filename." ",$oldest_secold,$o_age_crit)) ) {
         $statuscode = "CRITICAL";
