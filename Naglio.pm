@@ -3,7 +3,7 @@ package Naglio;
 use strict;
 use fields qw();
 use Text::ParseWords;
-use base Exporter;
+use base qw(Exporter);
 
 our $NAME       = 'naglio';
 our $VERSION    = '0.3_01';
@@ -104,7 +104,7 @@ $0 = $NAME;
 our @ISA = qw(Exporter);
 
 our @EXPORT_OK = qw(%ERRORS %STATUS_TEXT verb readable_time trim isnum);
-our @EXPORT = qw()
+our @EXPORT = qw();
 
 our %ERRORS = ('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 our %STATUS_TEXT = (0=>'OK',1=>'WARNING',2=>'CRITICAL',3=>'UNKNOWN',4=>'DEPENDENT');
@@ -135,18 +135,19 @@ sub _init_self {
     my @ar_critLv = ();		# used during options processing
     my @ar_varsL=   ();        # used during options processing
     my @prev_time=  ();     	# timestamps if more then one set of previois performance data
+    my %other_args = ();
     my %threshold_keywords = ('metric' => 'METRIC', 'name' => 'NAME', 'label' => 'LABEL',  # acceptable threshold keywords
                               'warn' =>'WARN', 'warning' => 'WARN', 'w' => 'WARN', 'awarn' => 'AWARN',
 			      'crit' =>'CRIT', 'critical' => 'CRIT', 'c' => 'CRIT', 'acrit' => 'ACRIT',
 			      'ok' => 'OK', 'aok' => 'AOK', 'absent' => 'ABSENT', 'zero' => 'ZERO', 
 			      'perf' => 'PERF', 'display' => 'DISPLAY', 'prefix' => 'PREFIX',
-			      'unit' => 'UNIT', 'uom' = 'UNIT', 'pattern' => 'PATTERN');
+			      'unit' => 'UNIT', 'uom' => 'UNIT', 'pattern' => 'PATTERN');
 
     my $self = {  # library and nagios versions
 		_NaglioLibraryVersion => 0.2,	# this library's version
 		_NagiosVersion => 3, 		# assume nagios core 3.x unless known otherwise
                 # library internal data structures
-                _is_object = 0;
+                _is_object => 0,
 		_allVars => \@allVars,
 		_perfVars => \@perfVars,
 	        _thresholds => \%thresholds,
@@ -156,7 +157,7 @@ sub _init_self {
 		_ar_critLv => \@ar_critLv,
 		_ar_varsL => \@ar_varsL,
 		_prevTime => \@prev_time,
-		_threshold_keywords = \%threshold_keywords,
+		_threshold_keywords => \%threshold_keywords,
 		_prevPerf => {},		# array that is populated with previous performance data
 		_checkTime => undef,		# time when data was last checked
 		_statuscode => "OK",		# final status code
@@ -181,9 +182,9 @@ sub _init_self {
 		plugin_name => '',		# this and next 3 parameters are currently not used
 		plugin_description => '',	# but its still better if these are provided
 		plugin_authors => '',		# in the future these maybe used for help & usage functions
-		usage_text => ''		# usage text, this is alternative to usage_function()
+		usage_text => '',		# usage text, this is alternative to usage_function()
 		# library setting variables
-		debug_file => "",		# instead of setting file name in verbose, can also set it here
+		debug_file => '',		# instead of setting file name in verbose, can also set it here
 		output_comparison_symbols => 1, # should plugin output >,<.=,! for threshold match
 						# if 0, it will say it in human form, i.e. "less"
 		all_variables_perf => 0,	# should we all variables go to PERF (even those not listed in o_variables and o_perfvars)
@@ -221,12 +222,14 @@ sub _init_self {
 sub lib_init {
     my $invocant = shift;
     my $class = ref($invocant) || $invocant;
-    my %other_args = @_;
     my $self = _init_self();
-    
+    my %other_args = @_;
+
     # bless to create an object
     bless $self, $class;
     $self->{'_is_object'} = 1;
+
+    $self->{'_other_args'}{$_}=$other_args{$_} foreach (keys %other_args);
 
     # deal with arguments that maybe passed to library when initalizing
     if (exists($other_args{'KNOWN_STATUS_VARS'})) {
@@ -317,7 +320,8 @@ sub set_usage_function {
 sub usage {
   my $self = shift;
   if (defined($self) && defined($self->{'_usage_function'})) { &{$self->{'_usage_function'}}(); }
-  else if (defined($self) && defined($self->{'usage_text'})) { print $self->{'usage_text'}; print "\n"; }
+  elsif (defined($self) && defined($self->{'usage_text'})) { print $self->{'usage_text'}; print "\n"; }
+  else {}
 }
 
 #  @DESCRIPTION   : This function converts time in seconds to nice & short output format
@@ -338,20 +342,20 @@ sub readable_time {
   $txtout .= "$days days " if $days>0;
   $txtout .= (($txtout ne '')?' ':'').$hrs." hours" if $hrs>0;
   $txtout .= (($txtout ne '')?' ':'').$mins." minutes" if $mins>0 && ($days==0 || $hrs==0);
-  $txtout .= (($txtout ne '')?' ':'').$secs." seconds" if ($sec>0 || $mins==0) && ($hrs==0 && $days==0);
+  $txtout .= (($txtout ne '')?' ':'').$sec." seconds" if ($sec>0 || $mins==0) && ($hrs==0 && $days==0);
   return $txtout;
 }
 
 #  @DESCRIPTION   : If debug / verbose option is set, function prints its input out or to debug file
 #  @LAST_CHANGED  : 08-20-12 by WL
-#  @INPUT         : ARG1 - string of debug text
+#  @INPUT         : ARG1 - string of debug text, ARG2 - if used directly 1 for debug, 1 no debug
 #  @RETURNS       : nothing
 #  @PRIVACY & USE : PUBLIC, Maybe used directly or as object instance function
 sub verb {
-    my ($self,$in) = _self_args(@_);
+    my ($self,$in, $o_verb) = _self_args(@_);
     my $debug_file_name = "";
 
-    if (defined($o_verb) || (defined($self) && $self->{'_is_object'}==1 &&
+    if ((defined($o_verb) && $o_verb) || (defined($self) && $self->{'_is_object'}==1 &&
         defined($self->{'verbose'}) && $self->{'verbose'} ne 0)) {
         $debug_file_name = $self->{'debug_file'} if defined($self) && $self->{'_is_object'}==1 && $self->{'debug_file'} ne "";
         $debug_file_name = $self->{'verbose'} if $debug_file_name ne "" && defined($self) && $self->{'_is_object'}==1 &&
@@ -414,7 +418,7 @@ sub process_perf {
        if (/(.*)=(.*)/) {
            ($nm,$dt)=($1,$2);
 	   if (defined($self) && $self->{'_is_object'}==1) { $self->verb("prev_perf: $nm = $dt"); }
-	   else { verb("prev_perf: $nm = $dt"); }
+	   else { verb("prev_perf: $nm =  $dt"); }
            # in some of my plugins time_ is to profile execution time for part of plugin
            # $pdh{$nm}=$dt if $nm !~ /^time_/;
            $pdh{$nm}=$dt;
@@ -764,7 +768,7 @@ sub check_thresholds {
     }
     else {
 	if (exists($thresholds->{'CRIT'})) {
-	        for ($i=0; $i<scalar(@{$thresholds->{'CRIT'}});$i++) {
+	        CRITLOOP: for ($i=0; $i<scalar(@{$thresholds->{'CRIT'}});$i++) {
 			if ($chk) {
 			    if (exists($thresholds->{'CRIT'}[$i]{'logic'}) && $thresholds->{'CRIT'}[$i]{'logic'} eq 'and') {
 				$chk2 = $self->check_threshold_level($attrib,$data, $thresholds->{'CRIT'}[$i]);
@@ -775,7 +779,7 @@ sub check_thresholds {
 				    $chk = ''
 				}
 			    }
-			    else { break; } # no acrit, so threshold condition is met and we can exit the loop
+			    else { last CRITLOOP; } # no acrit, so threshold condition is met and we can exit the loop
 			}
 			else {
 			    $chk = $self->check_threshold_level($attrib,$data, $thresholds->{'CRIT'}[$i]);
@@ -786,7 +790,7 @@ sub check_thresholds {
 		}
 	}	
 	if (exists($thresholds->{'WARN'}) && !$chk) { # we don't check warning if critical already found
-	        for ($i=0; $i<scalar(@{$thresholds->{'WARN'}});$i++) {
+	        WARNLOOP: for ($i=0; $i<scalar(@{$thresholds->{'WARN'}});$i++) {
 			if ($chk) {
 			    if (exists($thresholds->{'WARN'}[$i]{'logic'}) && $thresholds->{'WARN'}[$i]{'logic'} eq 'and') {
 				$chk2 = $self->check_threshold_level($attrib,$data, $thresholds->{'WARN'}[$i]);
@@ -797,7 +801,7 @@ sub check_thresholds {
 				    $chk = ''
 				}
 			    }
-			    else { break; } # no awarn. so thresold condition is met and we can exit the loop
+			    else { last WARNLOOP; } # no awarn. so thresold condition is met and we can exit the loop
 			}
 			else {
 			    $chk = $self->check_threshold_level($attrib,$data, $thresholds->{'WARN'}[$i]);
@@ -832,7 +836,7 @@ sub parse_threshold_level {
     # link to an array that holds processed threshold data
     # array: 1st is type of check, 2nd is threshold value or value1 in range, 3rd is value2 in range,
     #        4th is extra options such as ^, 5th is nagios spec string representation for perf out
-    my $th_array = { 'type' => '', 'range1' => undef, 'range2' = >undef, 'opt' => '', 'perf' => '' };
+    my $th_array = { 'type' => '', 'range1' => undef, 'range2' => undef, 'opt' => '', 'perf' => '' };
     my $th = $thin;
     my $at = '';
 
@@ -1036,18 +1040,18 @@ sub parse_thresholds {
       
    # check if threshold line begins with any known threshold keyword or not
    if (defined($t)) {
-        foreach $k (keys %{$threshod_keywords)) {
+        THK_LOOP: foreach $k (keys %{$threshold_keywords}) {
 	    if ($t =~ /^$k/i) {
 	        $is_long_syntax = 1;
-	        break;
+	        last THK_LOOP;
 	    }
         }
    }
-   if ($is_long_syntax==0) {
+   if ($is_long_syntax == 0) {
 	# old format of =warn,crit thresholds with 1 each warn and crit but specifying which one
 	if (scalar(@tin)==2) {
 	    if (defined($self) && $self->{'_is_object'}==1) {
-		  $thres->{'WARN'} = [ $self->parse_threshold_leve;($tin[0]) ];
+		  $thres->{'WARN'} = [ $self->parse_threshold_level($tin[0]) ];
 		  $thres->{'CRIT'} = [ $self->parse_threshold_level($tin[1]) ];
 	    }
 	    else {
@@ -1076,7 +1080,7 @@ sub parse_thresholds {
 			if (defined($self) && $self->{'_is_object'}==1) { $self->usage(); }
 			exit $ERRORS{"UNKNOWN"};
 		    }
-		    if ($threshold->keywords->{$t2} eq 'WARN' || $threshold->keywords->{$t2} eq 'AWARN') {
+		    if ($threshold_keywords->{$t2} eq 'WARN' || $threshold_keywords->{$t2} eq 'AWARN') {
 			    $thres->{'WARN'} = [] if !exists($thres->{'WARN'});
 			    my $thl = undef;
 			    if (defined($self) && $self->{'_is_object'}==1) {
@@ -1085,7 +1089,7 @@ sub parse_thresholds {
 			    else {
 				$thl = parse_threshold_level($val);
 			    }
-			    if ($threshold->keywords->{$t2} eq 'AWARN') {
+			    if ($threshold_keywords->{$t2} eq 'AWARN') {
 				$thl->{'logic'} = 'and';
 			    }
 			    else {
@@ -1093,7 +1097,7 @@ sub parse_thresholds {
 			    }	
 			    push @{$thres->{'WARN'}}, $thl;
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'CRIT' || $threshold->keywords->{$t2} eq 'ACRIT') {
+		    elsif ($threshold_keywords->{$t2} eq 'CRIT' || $threshold_keywords->{$t2} eq 'ACRIT') {
 			    $thres->{'CRIT'} = [] if !exists($thres->{'CRIT'});
 			    my $thl = undef;
 			    if (defined($self) && $self->{'_is_object'}==1) {
@@ -1102,7 +1106,7 @@ sub parse_thresholds {
 			    else {
 				$thl = parse_threshold_level($val);
 			    }
-			    if ($threshold->keywords->{$t2} eq 'ACRIT') {
+			    if ($threshold_keywords->{$t2} eq 'ACRIT') {
 				$thl->{'logic'} = 'and';
 			    }
 			    else {
@@ -1110,7 +1114,7 @@ sub parse_thresholds {
 			    }	
 			    push @{$thres->{'CRIT'}}, $thl;
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'ABSENT') {
+		    elsif ($threshold_keywords->{$t2} eq 'ABSENT') {
 			    if (defined($ERRORS{$val})) {
 				$thres->{'ABSENT'} = $val;
 			    }
@@ -1120,7 +1124,7 @@ sub parse_thresholds {
 				exit $ERRORS{"UNKNOWN"};
 			    }
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'ZERO') {
+		    elsif ($threshold_keywords->{$t2} eq 'ZERO') {
 			  if (exists($ERRORS{$val})) {
 				$thres->{'ZERO'} = $val;
 			  }
@@ -1130,7 +1134,7 @@ sub parse_thresholds {
 				exit $ERRORS{"UNKNOWN"};
 			  }
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'DISPLAY') {
+		    elsif ($threshold_keywords->{$t2} eq 'DISPLAY') {
 			  if ($val eq 'YES' || $val eq 'NO') {
 			      $thres->{'DISPLAY'} = $val;
 			  }
@@ -1140,7 +1144,7 @@ sub parse_thresholds {
 			      exit $ERRORS{"UNKNOWN"};
 			  }
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'PERF') {
+		    elsif ($threshold_keywords->{$t2} eq 'PERF') {
 			  if ($val eq 'YES' || $val eq 'NO') {
 			      $thres->{'PERF'} = $val;
 			  }
@@ -1150,17 +1154,17 @@ sub parse_thresholds {
 			      exit $ERRORS{"UNKNOWN"};
 			  }
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'PATTERN') {
+		    elsif ($threshold_keywords->{$t2} eq 'PATTERN') {
 			  $thres->{'PATTERN'} = $val;
 			  $self->{'enable_regex_match'} = 2 if defined($self) && $self->{'enable_regex_match'} eq 0;
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'NAME') {
+		    elsif ($threshold_keywords->{$t2} eq 'NAME') {
 			  $thres->{'NAME'} = $val;
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'METRIC') {
+		    elsif ($threshold_keywords->{$t2} eq 'METRIC') {
 			  $thres->{'METRIC'} = $val;
 		    }
-		    elsif ($threshold->keywords->{$t2} eq 'UNIT') {
+		    elsif ($threshold_keywords->{$t2} eq 'UNIT') {
 			  $thres->{'UOM'} = $val;
 		    }
 		    else {
@@ -1173,7 +1177,7 @@ sub parse_thresholds {
 	}
    }
    if (exists($thres->{'WARN'}) && exists($thres->{'CRIT'}) &&
-       scalar(@{$thres->{'WARN'}})==1 && scalar(@{$thres->'CRIT'}})==1) {
+       scalar(@{$thres->{'WARN'}})==1 && scalar(@{$thres->{'CRIT'}})==1) {
 	  my $check_warncrit = 0;
 	  if (defined($self) && $self->{'_is_object'}==1) {
 	      $check_warncrit = $self->threshold_specok($thres->{'WARN'}[0],$thres->{'CRIT'}[0]);
@@ -1312,6 +1316,8 @@ sub additional_options_help {
   my $vname2;
   my $counter = 0;
   my $known_vars = $self->{'knownStatusVars'};
+  my $o_rprefix = $self->{'o_rprefix'} if exists($self->{'o_rprefix'});
+  my $o_rsuffix = $self->{'o_rsuffix'} if exists($self->{'o_rsuffix'});
 
   if ($self->{'enable_long_options'} != 1) { return ''; }
 
@@ -1652,7 +1658,7 @@ sub threshold_getperfinfo {
     }
     else {
 	for (my $i=0;$i<$th_ar_size;$i++) {
-	    if (exists($th_ar_ref->[$i]{'perf'}) && $th_ar_ref->[i]{'perf'} ne '') {
+	    if (exists($th_ar_ref->[$i]{'perf'}) && $th_ar_ref->[$i]{'perf'} ne '') {
 	       $perf_str.=',' if $perf_str ne '';
 	       $perf_str.=$th_ar_ref->[$i]{'perf'};
 	    }
@@ -1698,14 +1704,14 @@ sub main_checkvars {
 	    $aname = $self->out_name($dvar);
 	    if (defined($dataresults->{$dvar}[0])) {
 		# main check
-		$chk = check_thresholds($aname, lc $dataresults->{$dvar}[0], $thresholds->{$avar});
+		$chk = $self->check_thresholds($aname, lc $dataresults->{$dvar}[0], $thresholds->{$avar});
 		$self->addto_statusinfo_output($dvar,$chk) if $chk;
 		
 		# if we did not output to status line yet, do so
 		$self->addto_statusdata_output($dvar,$aname." is ".$dataresults->{$dvar}[0]);
 
 		# if we were asked to output performance, prepare it but do not output until later
-		if i((defined($self->{'o_perf'}) && defined($avar) && !exists($thresholds->{$avar}{'PERF'})) ||
+		if ((defined($self->{'o_perf'}) && defined($avar) && !exists($thresholds->{$avar}{'PERF'})) ||
 		    (exists($thresholds->{$avar}{'PERF'}) && $thresholds->{$avar}{'PERF'} eq 'YES')) {
 			$perf_str = perf_name($aname).'='.$dataresults->{$dvar}[0];
 			$self->set_perfdata($dvar, $perf_str, undef, "IFNOTSET"); # with undef UOM would get added
@@ -1908,7 +1914,7 @@ sub nagios_die {
 #  @PRIVACY & USE : PUBLIC, Maybe used directly or as an object instance function
 sub check_messages {
     my @all_args = _self_ars(@_);
-    my $self = shift @all_args
+    my $self = shift @all_args;
     my %args = @all_args;
     my $ar_warn = [];
     my $ar_crit = [];
@@ -1920,8 +1926,8 @@ sub check_messages {
     my $ret_msg = "";
     my $join = " ";
 
-    $join = $args{'join'} if exists($args{'join'};
-    $join = $args{'join_all'} if exists($args{'join_all'};
+    $join = $args{'join'} if exists($args{'join'});
+    $join = $args{'join_all'} if exists($args{'join_all'});
     if (exists($args{'warning'})) {
 	$ar_warn = $args{'warning'};
 	$ret_msg_warn = join($join,@{$ar_warn});
@@ -1931,7 +1937,7 @@ sub check_messages {
 	$ret_msg_crit = join($join,@{$ar_warn});
     }
     if (exists($args{'ok'})) {
-	if (ref($args{'ok'}) {
+	if (ref($args{'ok'})) {
 	    $ar_ok = $args{'ok'};
 	}
 	else {
@@ -1943,12 +1949,12 @@ sub check_messages {
 	$ret_code = "CRITICAL";
 	$ret_msg = $ret_msg_crit;
     }
-    elsif (scalar(@{ar_warn})>0) {
+    elsif (scalar(@{$ar_warn})>0) {
 	$ret_code = "WARNING";
 	$ret_msg = $ret_msg_warn;
     }
     else {
-	$ret_code = "OK"
+	$ret_code = "OK";
 	$ret_msg = $ret_msg_ok;
     }
     if (exists($args{'join_all'})) {
