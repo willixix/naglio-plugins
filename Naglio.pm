@@ -329,6 +329,7 @@ sub usage {
 #  @INPUT         : ARG1 - time in seconds
 #  @RETURNS       : string of time for human consumption
 #  @PRIVACY & USE : PUBLIC, Maybe used directly or as an object instance function :
+#  @Note          : in Naglio 0.2 this function was called uptime_info()
 sub readable_time {
   my ($self,$total_sec) = _self_args(@_);
   my ($sec,$mins,$hrs,$days);
@@ -558,7 +559,7 @@ sub statusdata {
 #			   if undef then it is looked up in known variables and if one is present there, its used
 #		    ARG4 - one of: "REPLACE" - if existing preset perfdata is present, it would be replaced with ARG2
 #		                   "ADD"     - if existing preset perfdata is there, ARG2 string would be added to it (DEFAULT)
-#				   "IFNOTSET - only set perfdata to ARG2 if it is empty, otherwise keep existing
+#				   "IFNOTSET" - only set perfdata to ARG2 if it is empty, otherwise keep existing
 #  @RETURNS       : nothing (future: 0 on success, -1 on error)
 #  @PRIVACY & USE : PUBLIC, but its use should be limited to custom variables added by plugins to data
 #                   Must be used as an object instance function
@@ -572,7 +573,7 @@ sub set_perfdata {
 
     # default operation is ADD
     if (!defined($opt)) {
-	$opt = "ADD";
+	$opt = "REPLACE";
     }
     else {
 	$opt = uc $opt;
@@ -864,7 +865,7 @@ sub parse_threshold_level {
 	}
 	$th_array->{'type'}=($at !~ /@/)?':':'@';
 	$th_array->{'perf'}=($at != /@/)?'':'@';
-	$th_array->{'perf'}.=$th_array->[1].':'.$th_array->[2];
+	$th_array->{'perf'}.=$th_array->{'range1'}.':'.$th_array->{'range2'};
     }
     if (!defined($th_array->{'range1'})) {			# my own format (<,>,=,!)
 	$th_array->{'type'} = ($at eq '@')?'<=':$at;
@@ -903,7 +904,7 @@ sub threshold_specok {
 
     return 1 if defined($warn_thar) && defined($warn_thar->{'range1'}) &&
 		defined($crit_thar) && defined($crit_thar->{'range1'}) &&
-		isnum($warn_thar->[1]) && isnum($crit_thar-{'range1'}) &&
+		isnum($warn_thar->{'range1'}) && isnum($crit_thar-{'range1'}) &&
                 $warn_thar->{'type'} eq $crit_thar-{'type'} &&
                 (!defined($warn_thar->{'opt'}) || $warn_thar->{'opt'} !~ /\^/) &&
 		(!defined($crit_thar->{'opt'}) || $crit_thar->{'opt'} !~ /\^/) &&
@@ -1241,7 +1242,7 @@ sub add_threshold {
     $self->{'_thresholds'}{$var}=$th;
 }
 sub add_thresholds {
-    return add_thresholds(@_);
+    return add_threshold(@_);
 }
 
 #  @DESCRIPTION   : Accessor function for thresholds and related variable settings on what and how to check

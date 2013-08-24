@@ -3,8 +3,8 @@
 # ============================== SUMMARY =====================================
 #
 # Program : check_redis.pl
-# Version : 0.73
-# Date    : Mar 23, 2013
+# Version : 0.8 alpha1
+# Date    : Aug 23, 2013
 # Author  : William Leibzon - william@leibzon.org
 # Licence : GPL - summary below, full text at http://www.fsf.org/licenses/gpl.txt
 #
@@ -1238,7 +1238,7 @@ print " - " if $nlib->statusinfo();
 print "REDIS " . $dbversion . ' on ' . $HOSTNAME. ':'. $PORT;
 print ' has '.scalar(keys %dbs).' databases ('.join(',',keys(%dbs)).')';
 print " with $total_keys keys" if $total_keys > 0;
-print ', up '.$nlib->uptime_info($nlib->vardata('uptime_in_seconds')) if defined($nlib->vardata('uptime_in_seconds'));
+print ', up '.$nlib->readable_time($nlib->vardata('uptime_in_seconds')) if defined($nlib->vardata('uptime_in_seconds'));
 print " - " . $nlib->statusdata() if $nlib->statusdata();
 print $nlib->perfdata();
 print "\n";
