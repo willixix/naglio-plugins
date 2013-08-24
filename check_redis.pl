@@ -539,17 +539,17 @@ my $o_rprefix='';
 ## Additional global variables
 my $redis= undef;               # DB connection object
 my @query=();                   # array of queries with each entry being keyed hash of processedoption data on howto query
-
+my $plugin_cmd = "check_redis.pl";
 
 sub p_version { print "check_redis.pl version : $Version\n"; }
 
 sub print_usage_line {
-   print "Usage: $0 [-v [debugfilename]] -H <host> [-p <port>] [-x password | -C credentials_file] [-D <database>] [-a <statistics variables> -w <variables warning thresholds> -c <variables critical thresholds>] [-A <performance output variables>] [-T [conntime_warn,conntime_crit]] [-R [hitrate_warn,hitrate_crit]] [-m [mem_utilization_warn,mem_utilization_crit] [-M <maxmemory>[B|K|M|G]]] [-r replication_delay_time_warn,replication_delay_time_crit]  [-f] [-T <timeout>] [-V] [-P <previous performance data in quoted string>] [-q (GET|LLEN|HLEN|SLEN|ZLEN|HGET:name|HEXISTS:name|SEXISTS:name|LRANGE:(AVG|SUM|MIN|MAX):start:end|ZRANGE:(AVG|SUM|MIN|MAX):start:end),query_type,query_key_name[:data_name][,ABSENT:WARNING|CRITICAL][,WARN:threshold,CRIT:threshold]] [-o <threshold specification with name or pattern>]\n";
+   print "Usage: $plugin_cmd [-v [debugfilename]] -H <host> [-p <port>] [-x password | -C credentials_file] [-D <database>] [-a <statistics variables> -w <variables warning thresholds> -c <variables critical thresholds>] [-A <performance output variables>] [-T [conntime_warn,conntime_crit]] [-R [hitrate_warn,hitrate_crit]] [-m [mem_utilization_warn,mem_utilization_crit] [-M <maxmemory>[B|K|M|G]]] [-r replication_delay_time_warn,replication_delay_time_crit]  [-f] [-T <timeout>] [-V] [-P <previous performance data in quoted string>] [-q (GET|LLEN|HLEN|SLEN|ZLEN|HGET:name|HEXISTS:name|SEXISTS:name|LRANGE:(AVG|SUM|MIN|MAX):start:end|ZRANGE:(AVG|SUM|MIN|MAX):start:end),query_type,query_key_name[:data_name][,ABSENT:WARNING|CRITICAL][,WARN:threshold,CRIT:threshold]] [-o <threshold specification with name or pattern>]\n";
 }
 
 sub print_usage {
    print_usage_line();
-   print "For more details on options do: $0 --help\n";
+   print "For more details on options do: $plugin_cmd --help\n";
 }
 
 sub help {
@@ -789,7 +789,7 @@ sub option_query {
 	  $query[$i]{'key_query'} = $key_query;
 	  $query[$i]{'key_name'} = $key_name;
           # parse thresholds and finish processing assigning values to arrays
-          my $th = $nlib->parse_thresholds_list(join(',',@ar));
+          my $th = $nlib->parse_thresholds(join(',',@ar));
 	  if (exists($th->{'ABSENT'})) {
 	      $nlib->verb("- ".$th->{'ABSENT'}." alert will be issued if $key_query is not present");
 	      $query[$i]{'alert'} = $th->{'ABSENT'};
@@ -802,7 +802,7 @@ sub option_query {
 	      $nlib->verb("- critical threshold ".$th->{'CRIT'}." set");
 	      $query[$i]{'crit'} = $th->{'CRIT'};
 	  }
-	  $nlib->add_thresholds($key_name,$th);
+	  $nlib->add_threshold($key_name,$th);
      }
 }
 
@@ -879,16 +879,16 @@ sub check_options {
     # additional variables/options calculated and added by this plugin
     if (defined($o_timecheck) && $o_timecheck ne '') {
           $nlib->verb("Processing timecheck thresholds: $o_timecheck");
-	  $nlib->add_thresholds('response_time',$o_timecheck);
+	  $nlib->add_threshold('response_time',$o_timecheck);
     }
     if (defined($o_hitrate) && $o_hitrate ne '') {
           $nlib->verb("Processing hitrate thresholds: $o_hitrate");
-	  $nlib->add_thresholds('hitrate',$o_hitrate);
+	  $nlib->add_threshold('hitrate',$o_hitrate);
 	  $nlib->set_threshold('hitrate','ZERO','OK') if !defined($nlib->get_threshold('hitrate','ZERO')); # except case of hitrate=0, don't remember why I added it
     }
     if (defined($o_memutilization) && $o_memutilization ne '') {
           $nlib->verb("Processing memory utilization thresholds: $o_memutilization");
-          $nlib->add_thresholds('memory_utilization',$o_memutilization);
+          $nlib->add_threshold('memory_utilization',$o_memutilization);
     }
     if (defined($o_totalmemory)) {
 	if ($o_totalmemory =~ /^(\d+)B/) {
@@ -911,13 +911,13 @@ sub check_options {
     }
     if (defined($o_repdelay) && $o_repdelay ne '') {
           $nlib->verb("Processing replication delay thresholds: $o_repdelay");
-          $nlib->add_thresholds('replication_delay',$o_repdelay);
+          $nlib->add_threshold('replication_delay',$o_repdelay);
     }
 
     # general check option, allows to specify everything, can be repeated more than once
     foreach $opt (@o_check) {
 	  $nlib->verb("Processing general check option: ".$opt);
-	  $nlib->add_thresholds(undef,$opt);
+	  $nlib->add_threshold(undef,$opt);
     }
 
     # query option processing

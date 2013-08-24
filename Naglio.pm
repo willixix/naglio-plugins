@@ -1020,10 +1020,11 @@ sub vardata {
 #		       PATTERN:<regex> - enables regex match allowing more than one real data name to match this threshold
 #		       NAME:<string> - overrides output status and perf name for this variable
 #		       UOM:<string>  - unit of measurement symbol to add to perf
-#  @RETURNS       : Returns reference to a hash array, a library's structure for holding processed THRESHOLD keywords spec
+#  @RETURNS       : Retur_ns reference to a hash array, a library's structure for holding processed THRESHOLD keywords spec
 #		    This THRESHOLD is structure with keywords as hashes and arrays of WARN and CRIT levels
 #  @PRIVACY & USE : PUBLIC, but its use is discouraged. Maybe used directly or as an object instance function.
 #  @TODO : this needs to be split into several functions each handling specific keyword
+#  @NOTE : this function was called parse_thresholds_list in Naglio 0.2
 sub parse_thresholds {
    my ($self,$in) = _self_args(@_);
    my $thres = {};
@@ -1207,7 +1208,8 @@ sub parse_thresholds {
 # 			    which would get parsed by parse_thresholds function into ref array
 #  @RETURNS       : nothing (future: 1 on success, 0 on error)
 #  @PRIVACY & USE : PUBLIC, Recommend function for adding thresholds. Must be used as an object instance function
-sub add_thresholds {
+#  @NOTE          : this is to be renamed add_threshold() from add_thresholds()
+sub add_threshold {
     my ($self,$var,$th_in) = @_;
     my $th;
     if (ref($th_in) && (exists($th_in->{'WARN'}) || exists($th_in->{'CRIT'}) || exists($th_in->{'DISPLAY'}) ||
@@ -1237,6 +1239,9 @@ sub add_thresholds {
     }
     push @{$self->{'_allVars'}}, $var if !exists($self->{'_thresholds'}{$var});
     $self->{'_thresholds'}{$var}=$th;
+}
+sub add_thresholds {
+    return add_thresholds(@_);
 }
 
 #  @DESCRIPTION   : Accessor function for thresholds and related variable settings on what and how to check
