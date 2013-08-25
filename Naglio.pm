@@ -424,6 +424,7 @@ sub process_perf {
            # $pdh{$nm}=$dt if $nm !~ /^time_/;
            $pdh{$nm}=$dt;
            $pdh{$nm}=$1 if $dt =~ /(\d+)[csB%]/; # 'c' or 's' or B or % maybe have been added
+						 # TODO: support other UOMs
 	   # support for more than one set of previously cached performance data
            # push @prev_time,$1 if $nm =~ /.*\.(\d+)/ && (!defined($prev_time[0]) || $prev_time[0] ne $1);
        }
@@ -580,7 +581,7 @@ sub set_perfdata {
     }
     if (defined($adata) && (!defined($dataresults->{$avar}) || $dataresults->{$avar}[2]<1)) {
 	# if only data wthout "var=" create proper perf line
-	$bdata = perf_name($self->out_name($avar)).'='.$adata if $adata !~ /=/;
+	$bdata = perf_name($self->out_name($avar)).'='.$adata if $adata !~ /\=/;
 	if (defined($unit)) {
 	    $bdata .= $unit;
 	}
@@ -643,7 +644,7 @@ sub addto_perfdata_output {
            }
 	   # this would use existing preset data now if it was present due to default
 	   # setting UOM from KNOWN_STATUS_VARS array is now in set_perfdata if 3rd arg is undef
-	   $self->set_perfdata($avar,$bdata,'IFNOTSET',$opt);
+	   $self->set_perfdata($avar,$bdata,'',$opt);
 	   # now we actually add to perfdata from [3] of dataresults
 	   if (exists($dataresults->{$avar}[3]) && $dataresults->{$avar}[3] ne '' && $dataresults->{$avar}[2]<1) {
 		$bdata = trim($dataresults->{$avar}[3]);
@@ -1720,9 +1721,6 @@ sub main_checkvars {
 		if ((defined($self->{'o_perf'}) && defined($avar) && !exists($thresholds->{$avar}{'PERF'})) ||
 		    (exists($thresholds->{$avar}{'PERF'}) && $thresholds->{$avar}{'PERF'} eq 'YES')) {
 			$perf_str = perf_name($aname).'='.$dataresults->{$dvar}[0];
-			$self->set_perfdata($dvar, $perf_str, undef, "IFNOTSET"); # with undef UOM would get added
-			$dataresults->{$dvar}[2]=0; # this would clear -1 from preset perf data, making it ready for output
-			# below is where threshold info gets added to perfdata
 			my $warnperf=$self->threshold_getperfinfo($avar,'WARN',0);
 			my $critperf=$self->threshold_getperfinfo($avar,'CRIT',0);
 			if ($warnperf ne '' || $critperf ne '') {
@@ -1730,6 +1728,8 @@ sub main_checkvars {
 				$perf_str .= ';'.$critperf if $critperf ne '';
 				$self->set_perfdata($dvar, $perf_str, '', "ADD");
 			}
+			$self->set_perfdata($dvar, $perf_str, undef, "IFNOTSET"); # with undef UOM would get added
+			$dataresults->{$dvar}[2]=0; # this would clear -1 from preset perf data, making it ready for output
 		}
 	    }
 	}
