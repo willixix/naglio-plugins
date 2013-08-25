@@ -419,6 +419,11 @@ use Time::HiRes;
 use Text::ParseWords;
 use Getopt::Long qw(:config no_ignore_case);
 use Redis;
+
+# Add path to additional libraries if necessary
+use lib '/usr/lib/nagios/plugins';
+
+# Nagios library in above path
 use Naglio;
 
 # default hostname, port, database, user and password, see NOTES above
@@ -427,8 +432,6 @@ my $PORT=     6379;
 my $PASSWORD= undef;
 my $DATABASE= undef;
 
-# Add path to additional libraries if necessary
-use lib '/usr/lib/nagios/plugins';
 our $TIMEOUT;
 our %ERRORS;
 eval 'use utils qw(%ERRORS $TIMEOUT)';
