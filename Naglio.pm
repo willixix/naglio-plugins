@@ -905,7 +905,7 @@ sub threshold_specok {
 
     return 1 if defined($warn_thar) && defined($warn_thar->{'range1'}) &&
 		defined($crit_thar) && defined($crit_thar->{'range1'}) &&
-		isnum($warpn_thar->{'range1'}) && isnum($crit_thar->{'range1'}) &&
+		isnum($warn_thar->{'range1'}) && isnum($crit_thar->{'range1'}) &&
                 $warn_thar->{'type'} eq $crit_thar->{'type'} &&
                 (!defined($warn_thar->{'opt'}) || $warn_thar->{'opt'} !~ /\^/) &&
 		(!defined($crit_thar->{'opt'}) || $crit_thar->{'opt'} !~ /\^/) &&
@@ -1697,7 +1697,7 @@ sub main_checkvars {
     # main loop to check for warning & critical thresholds
     for (my $i=0;$i<scalar(@{$allVars});$i++) {
 	$avar = $allVars->[$i];
-	if (!defined($datavars->{$avar} || scalar(@{$datavars->{$avar}})==0) {
+	if (!defined($datavars->{$avar}) || scalar(@{$datavars->{$avar}})==0) {
 	    if (defined($thresholds->{$avar}{'ABSENT'})) {
 		$self->set_statuscode($thresholds->{$avar}{'ABSENT'});
 	    }
