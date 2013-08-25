@@ -5,11 +5,11 @@ use fields qw();
 use Text::ParseWords;
 use base qw(Exporter);
 
-our $NAME       = 'naglio';
-our $VERSION    = '0.3_01';
-our $LICENSE    = 'GNU Lesser General Public License (LGPL)';
-our $URL        = 'http://william.leibzon.org/nagios/';
-our $AUTHOR     = "William Leibzon";
+#our $NAME       = 'naglio';
+#our $VERSION    = '0.3_01';
+#our $LICENSE    = 'GNU Lesser General Public License (LGPL)';
+#our $URL        = 'http://william.leibzon.org/nagios/';
+#our $AUTHOR     = "William Leibzon";
 
 # ====================================== SUMMARY ================================================
 #
@@ -144,7 +144,7 @@ sub _init_self {
 			      'unit' => 'UNIT', 'uom' => 'UNIT', 'pattern' => 'PATTERN');
 
     my $self = {  # library and nagios versions
-		_NaglioLibraryVersion => 0.2,	# this library's version
+		_NaglioLibraryVersion => 0.3,	# this library's version
 		_NagiosVersion => 3, 		# assume nagios core 3.x unless known otherwise
                 # library internal data structures
                 _is_object => 0,

@@ -368,6 +368,9 @@
 # 			 results in keyspace_hits, keyspace_misses, memory_utilization
 #			 having double 'c' or '%' in perfdata. Added contributors section.
 #  [0.73 - Mar 23, 2013] Fixed bug in parse_threshold function of embedded library
+#  [0.8  - Aug 25, 2013] Separated check_redis plugin from Nagio library and upgraded it
+#                        to support 0.3 version of the library which supports multiple
+#                        WARN and CRIT thresholds for long options
 #
 # TODO or consider for future:
 #
@@ -386,11 +389,11 @@
 #
 #  2. REDIS Specific
 #     (a) Add option to check from master that slave is connected and working.
-#     (b) Look into replication delay from master and how it can be done. Look
-#         for into on replication_delay from slave as well
+#     (b) Look into replication delay from master and how it can be meausured.
+#         Look into replication_delay from slave as well.
 #     (c) How to better calculate memory utilization and get max memory available
 #         without directly specifying it
-#     (d) Maybe special options to measure cpu use and set thresholds
+#     (d) Maybe special options to measure cpu use and set thresholds on it
 #
 #  Others are welcome recommend a new feature to be added here. If so please email to
 #         william@leibzon.org.
@@ -405,6 +408,7 @@
 # The following individuals have contributed code, patches, bug fixes and ideas to
 # this plugin (listed in last-name alphabetical order):
 #
+#   Remi Broemeling
 #   William Leibzon
 #   Matthew Litwin
 #   Matt McMillan
@@ -440,7 +444,7 @@ if ($@) {
  %ERRORS = ('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 }
 
-my $Version='0.73';
+my $Version='0.8';
 
 # This is a list of known stat and info variables including variables added by plugin,
 # used in order to designate COUNTER variables with 'c' in perfout for graphing programs
@@ -662,10 +666,11 @@ Key Data Query Option (maybe repeated more than once):
 General Check Option (all 3 forms equivalent, can be repated more than once):
   -o <list of specifiers>, --option=<list of specifiers>, --check=<list of specifiers>
    where specifiers are separated by , and must include NAME or PATTERN:
-     NAME:<string>   - Default name for this variable as you'd have specified with -v
-     PATTERN:<regex> - Regular Expression that allows to match multiple data results
-     WARN:threshold  - warning alert threshold
-     CRIT:threshold  - critical alert threshold
+     METRIC:<string> - Default metric name for this variable as you'd have specified with -a
+     PATTERN:<regex> - Regular Expression that allows to match multiple metrics in data
+     NAME:<string>   - Name for the variable to be used in the output and perfdata
+     WARN:threshold  - warning alert threshold (maybe repeated)
+     CRIT:threshold  - critical alert threshold (maybe repeated)
        Threshold is a value (usually numeric) which may have the following prefix:
          > - warn if data is above this value (default for numeric values)
          < - warn if data is below this value (must be followed by number)
