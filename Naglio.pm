@@ -905,8 +905,8 @@ sub threshold_specok {
 
     return 1 if defined($warn_thar) && defined($warn_thar->{'range1'}) &&
 		defined($crit_thar) && defined($crit_thar->{'range1'}) &&
-		isnum($warn_thar->{'range1'}) && isnum($crit_thar-{'range1'}) &&
-                $warn_thar->{'type'} eq $crit_thar-{'type'} &&
+		isnum($warpn_thar->{'range1'}) && isnum($crit_thar->{'range1'}) &&
+                $warn_thar->{'type'} eq $crit_thar->{'type'} &&
                 (!defined($warn_thar->{'opt'}) || $warn_thar->{'opt'} !~ /\^/) &&
 		(!defined($crit_thar->{'opt'}) || $crit_thar->{'opt'} !~ /\^/) &&
               (($warn_thar->{'range1'}>$crit_thar->{'range1'} && ($warn_thar->{'type'} =~ />/ || $warn_thar->{'type'} eq '@')) ||
@@ -1697,29 +1697,30 @@ sub main_checkvars {
     # main loop to check for warning & critical thresholds
     for (my $i=0;$i<scalar(@{$allVars});$i++) {
 	$avar = $allVars->[$i];
-	if (defined($datavars->{$avar}) || scalar(@{$datavars->{$avar}})==0) {
-	    if (defined($thresholds->{$avar}{'ABSENT'})) {
-                $self->set_statuscode($thresholds->{$avar}{'ABSENT'});
-            }
-            else {
-                $self->set_statuscode("CRITICAL");
-            }
-	    $aname = $self->out_name($avar);
-            $self->addto_statusinfo_output($avar, "$aname data is missing");
-        }
-	foreach $dvar (@{$datavars->{$avar}}) {
-	    $aname = $self->out_name($dvar);
-	    if (defined($dataresults->{$dvar}[0])) {
-		# main check
-		$chk = $self->check_thresholds($aname, lc $dataresults->{$dvar}[0], $thresholds->{$avar});
-		$self->addto_statusinfo_output($dvar,$chk) if $chk;
+	if (!defined($datavars->{$avar}) {
+	    if (scalar(@{$datavars->{$avar}})==0) {
+		if (defined($thresholds->{$avar}{'ABSENT'})) {
+		    $self->set_statuscode($thresholds->{$avar}{'ABSENT'});
+		}
+		else {
+		    $self->set_statuscode("CRITICAL");
+		}
+		$aname = $self->out_name($avar);
+		$self->addto_statusinfo_output($avar, "$aname data is missing");
+	    }
+	    foreach $dvar (@{$datavars->{$avar}}) {
+		$aname = $self->out_name($dvar);
+		if (defined($dataresults->{$dvar}[0])) {
+		    # main check
+		    $chk = $self->check_thresholds($aname, lc $dataresults->{$dvar}[0], $thresholds->{$avar});
+		    $self->addto_statusinfo_output($dvar,$chk) if $chk;
 		
-		# if we did not output to status line yet, do so
-		$self->addto_statusdata_output($dvar,$aname." is ".$dataresults->{$dvar}[0]);
+		    # if we did not output to status line yet, do so
+		    $self->addto_statusdata_output($dvar,$aname." is ".$dataresults->{$dvar}[0]);
 
-		# if we were asked to output performance, prepare it but do not output until later
-		if ((defined($self->{'o_perf'}) && defined($avar) && !exists($thresholds->{$avar}{'PERF'})) ||
-		    (exists($thresholds->{$avar}{'PERF'}) && $thresholds->{$avar}{'PERF'} eq 'YES')) {
+		    # if we were asked to output performance, prepare it but do not output until later
+		    if ((defined($self->{'o_perf'}) && defined($avar) && !exists($thresholds->{$avar}{'PERF'})) ||
+		      (exists($thresholds->{$avar}{'PERF'}) && $thresholds->{$avar}{'PERF'} eq 'YES')) {
 			$perf_str = perf_name($aname).'='.$dataresults->{$dvar}[0];
 			my $warnperf=$self->threshold_getperfinfo($avar,'WARN',0);
 			my $critperf=$self->threshold_getperfinfo($avar,'CRIT',0);
@@ -1730,6 +1731,7 @@ sub main_checkvars {
 			}
 			$self->set_perfdata($dvar, $perf_str, undef, "IFNOTSET"); # with undef UOM would get added
 			$dataresults->{$dvar}[2]=0; # this would clear -1 from preset perf data, making it ready for output
+		    }
 		}
 	    }
 	}
