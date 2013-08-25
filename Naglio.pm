@@ -1697,17 +1697,17 @@ sub main_checkvars {
     # main loop to check for warning & critical thresholds
     for (my $i=0;$i<scalar(@{$allVars});$i++) {
 	$avar = $allVars->[$i];
-	if (!defined($datavars->{$avar}) {
-	    if (scalar(@{$datavars->{$avar}})==0) {
-		if (defined($thresholds->{$avar}{'ABSENT'})) {
-		    $self->set_statuscode($thresholds->{$avar}{'ABSENT'});
-		}
-		else {
-		    $self->set_statuscode("CRITICAL");
-		}
-		$aname = $self->out_name($avar);
-		$self->addto_statusinfo_output($avar, "$aname data is missing");
+	if (!defined($datavars->{$avar} || scalar(@{$datavars->{$avar}})==0) {
+	    if (defined($thresholds->{$avar}{'ABSENT'})) {
+		$self->set_statuscode($thresholds->{$avar}{'ABSENT'});
 	    }
+	    else {
+		$self->set_statuscode("CRITICAL");
+	    }
+	    $aname = $self->out_name($avar);
+	    $self->addto_statusinfo_output($avar, "$aname data is missing");
+	}
+	else {
 	    foreach $dvar (@{$datavars->{$avar}}) {
 		$aname = $self->out_name($dvar);
 		if (defined($dataresults->{$dvar}[0])) {
