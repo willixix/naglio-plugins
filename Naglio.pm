@@ -557,8 +557,8 @@ sub statusdata {
 #		    ARG2 - either "var=data" text or just "data" (in which case var= is prepended to it)
 #		    ARG3 - UOM symol ('c' for continous, '%' for percent, 's' for seconds) to added after data
 #			   if undef then it is looked up in known variables and if one is present there, its used
-#		    ARG4 - one of: "REPLACE" - if existing preset perfdata is present, it would be replaced with ARG2
-#		                   "ADD"     - if existing preset perfdata is there, ARG2 string would be added to it (DEFAULT)
+#		    ARG4 - one of: "REPLACE" - if existing preset perfdata is present, it would be replaced with ARG2 (DEFAULT on Naglio 0.3)
+#		                   "ADD"     - if existing preset perfdata is there, ARG2 string would be added to it (was default in Naglio 0.2)
 #				   "IFNOTSET" - only set perfdata to ARG2 if it is empty, otherwise keep existing
 #  @RETURNS       : nothing (future: 0 on success, -1 on error)
 #  @PRIVACY & USE : PUBLIC, but its use should be limited to custom variables added by plugins to data
@@ -578,7 +578,7 @@ sub set_perfdata {
     else {
 	$opt = uc $opt;
     }
-    if (defined($adata)) {
+    if (defined($adata) && (!defined($dataresults->{$avar}) || $dataresults->{$avar}[2]<1)) {
 	# if only data wthout "var=" create proper perf line
 	$bdata = perf_name($self->out_name($avar)).'='.$adata if $adata !~ /=/;
 	if (defined($unit)) {
@@ -643,9 +643,9 @@ sub addto_perfdata_output {
            }
 	   # this would use existing preset data now if it was present due to default
 	   # setting UOM from KNOWN_STATUS_VARS array is now in set_perfdata if 3rd arg is undef
-	   $self->set_perfdata($avar,$bdata,undef,$opt);
+	   $self->set_perfdata($avar,$bdata,'IFNOTSET',$opt);
 	   # now we actually add to perfdata from [3] of dataresults
-	   if (exists($dataresults->{$avar}[3]) && $dataresults->{$avar}[3] ne '') {
+	   if (exists($dataresults->{$avar}[3]) && $dataresults->{$avar}[3] ne '' && $dataresults->{$avar}[2]<1) {
 		$bdata = trim($dataresults->{$avar}[3]);
 		$self->{'_perfdata'} .= " " if $self->{'_perfdata'};
 		$self->{'_perfdata'} .= $bdata;
@@ -1443,11 +1443,11 @@ sub options_startprocessing {
 	if (exists($known_vars->{$vname}[3])) {
 	    if (exists($Options->{$vname})) {
 		 $self->verb("Option $vname found with spec parameter: ".$Options->{$vname});
-		 $self->add_thresholds($vname,$Options->{$vname});
+		 $self->add_threshold($vname,$Options->{$vname});
 	    }
 	    if (exists($Options->{$vname2})) {
 		 $self->verb("Rate option $vname2 found with spec parameter: ".$Options->{$vname2});
-		 $self->add_thresholds('&'.$vname,$Options->{$vname2});
+		 $self->add_threshold('&'.$vname,$Options->{$vname2});
 	    }
 	}
     }
@@ -1502,7 +1502,7 @@ sub _options_setthresholds {
                  if (defined($self) && $self->{'_is_object'}==1) { $self->usage(); }
                  exit $ERRORS{"UNKNOWN"};
 	      }
-	      $self->add_thresholds($ar_varsL->[$i], {'WARN'=>[$warn],'CRIT'=>[$crit]} );
+	      $self->add_threshold($ar_varsL->[$i], {'WARN'=>[$warn],'CRIT'=>[$crit]} );
 	  }
     }
 }
