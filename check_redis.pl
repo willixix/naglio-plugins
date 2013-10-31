@@ -3,8 +3,8 @@
 # ============================== SUMMARY =====================================
 #
 # Program : check_redis.pl
-# Version : 0.8 alpha1
-# Date    : Aug 23, 2013
+# Version : 0.8 alpha2
+# Date    : Nov 1, 2013
 # Author  : William Leibzon - william@leibzon.org
 # Licence : GPL - summary below, full text at http://www.fsf.org/licenses/gpl.txt
 #
@@ -368,9 +368,10 @@
 # 			 results in keyspace_hits, keyspace_misses, memory_utilization
 #			 having double 'c' or '%' in perfdata. Added contributors section.
 #  [0.73 - Mar 23, 2013] Fixed bug in parse_threshold function of embedded library
-#  [0.8  - Aug 25, 2013] Separated check_redis plugin from Nagio library and upgraded it
+#  [0.8  - Aug 25, 2013] Separated check_redis plugin from Naglio library and upgraded it
 #                        to support 0.3 version of the library which supports multiple
 #                        WARN and CRIT thresholds for long options
+#  [0.81 - Oct 31, 2013] Minor updates and removal of inclusion of util.pm since its going away
 #
 # TODO or consider for future:
 #
@@ -435,16 +436,14 @@ my $HOSTNAME= 'localhost';
 my $PORT=     6379;
 my $PASSWORD= undef;
 my $DATABASE= undef;
+my $TIMEOUT=  20;     # 20 seconds is default timeout
 
-our $TIMEOUT;
-our %ERRORS;
-eval 'use utils qw(%ERRORS $TIMEOUT)';
-if ($@) {
- $TIMEOUT = 20;
- %ERRORS = ('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
-}
+my $Version = '0.81';
+my $plugin_cmd = "check_redis.pl";
 
-my $Version='0.8';
+# standard nagios exit codes array
+# used to come from utils.pm. in the future will come from Nagio.pm
+my %ERRORS = ('OK'=>0,'WARNING'=>1,'CRITICAL'=>2,'UNKNOWN'=>3,'DEPENDENT'=>4);
 
 # This is a list of known stat and info variables including variables added by plugin,
 # used in order to designate COUNTER variables with 'c' in perfout for graphing programs
@@ -546,9 +545,8 @@ my $o_rprefix='';
 ## Additional global variables
 my $redis= undef;               # DB connection object
 my @query=();                   # array of queries with each entry being keyed hash of processedoption data on howto query
-my $plugin_cmd = "check_redis.pl";
 
-sub p_version { print "check_redis.pl version : $Version\n"; }
+sub p_version { print "$plugin_cmd version : $Version\n"; }
 
 sub print_usage_line {
    print "Usage: $plugin_cmd [-v [debugfilename]] -H <host> [-p <port>] [-x password | -C credentials_file] [-D <database>] [-a <statistics variables> -w <variables warning thresholds> -c <variables critical thresholds>] [-A <performance output variables>] [-T [conntime_warn,conntime_crit]] [-R [hitrate_warn,hitrate_crit]] [-m [mem_utilization_warn,mem_utilization_crit] [-M <maxmemory>[B|K|M|G]]] [-r replication_delay_time_warn,replication_delay_time_crit]  [-f] [-T <timeout>] [-V] [-P <previous performance data in quoted string>] [-q (GET|LLEN|HLEN|SLEN|ZLEN|HGET:name|HEXISTS:name|SEXISTS:name|LRANGE:(AVG|SUM|MIN|MAX):start:end|ZRANGE:(AVG|SUM|MIN|MAX):start:end),query_type,query_key_name[:data_name][,ABSENT:WARNING|CRITICAL][,WARN:threshold,CRIT:threshold]] [-o <threshold specification with name or pattern>]\n";

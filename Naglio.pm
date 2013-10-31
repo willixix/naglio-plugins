@@ -6,7 +6,7 @@ use Text::ParseWords;
 use base qw(Exporter);
 
 #our $NAME       = 'naglio';
-#our $VERSION    = '0.3_01';
+#our $VERSION    = '0.31';
 #our $LICENSE    = 'GNU Lesser General Public License (LGPL)';
 #our $URL        = 'http://william.leibzon.org/nagios/';
 #our $AUTHOR     = "William Leibzon";
@@ -72,10 +72,12 @@ use base qw(Exporter);
 #	       This bug was found in check_snmp_temperature and affected certain cases of
 #	       range specification. The bug dates back to 2009 or 2012 when code for threshold
 #	       range spec from nagios plugins spec was added.
-# [0.3  - Aug 21, 2013] Rewrote parts dealing with long thresholds, working towards implimenting
+# [0.3  - Aug 21, 2013] Rewrote parts dealing with long thresholds, working towards implementing
 #              https://github.com/willixix/nagios-plugins/wiki/New-Threshold-Syntax
 #              The library should now support multiple warn and crit and also awarn, however
 #              the range format supported is still only old one and not as above
+# [0.31 - Oct 31, 2013] Added 'DEFAULT' long-option specifier. Added list of supported specifiers
+#              as a map array, it has additional future ones I plan to add there too.
 #
 # ================================== LIBRARY TODO =================================================
 #
@@ -99,7 +101,7 @@ use base qw(Exporter);
 #
 # ================================================================================================
 
-$0 = $NAME;
+# $0 = $NAME;
 
 our @ISA = qw(Exporter);
 
@@ -136,12 +138,21 @@ sub _init_self {
     my @ar_varsL=   ();        # used during options processing
     my @prev_time=  ();     	# timestamps if more then one set of previois performance data
     my %other_args = ();
-    my %threshold_keywords = ('metric' => 'METRIC', 'name' => 'NAME', 'label' => 'LABEL',  # acceptable threshold keywords
+    my %threshold_keywords = ('metric' => 'METRIC', 'name' => 'NAME',     # acceptable threshold keywords
+			      'pattern' => 'PATTERN', 'regex' => 'REGEX', 'order' => 'ORDER',
+			      'label' => 'LABEL',  'perf_label' => 'PERF_LABEL', 
+			      'perf' => 'PERF', 'display' => 'DISPLAY',
                               'warn' =>'WARN', 'warning' => 'WARN', 'w' => 'WARN', 'awarn' => 'AWARN',
 			      'crit' =>'CRIT', 'critical' => 'CRIT', 'c' => 'CRIT', 'acrit' => 'ACRIT',
-			      'ok' => 'OK', 'aok' => 'AOK', 'absent' => 'ABSENT', 'zero' => 'ZERO', 
-			      'perf' => 'PERF', 'display' => 'DISPLAY', 'prefix' => 'PREFIX',
-			      'unit' => 'UNIT', 'uom' => 'UNIT', 'pattern' => 'PATTERN');
+			      'ok' => 'OK', 'aok' => 'AOK',
+			      'wexpr' => 'WARNING_EXPRESSION', 
+			      'warn_expr' => 'WARNING_EXPRESSION', 'warning_expression' => 'WARNING_EXPRESSION', 
+			      'cexpr' => 'CRITIICAL_EXPRESSION', 
+			      'crit_expr' => 'CRITICAL_EXPRESSION', 'critical_expression' => 'CRITICAL_EXPRESSION',
+			      'expression' => 'EXPRESSION', 'expr' => 'EXPRESSION',
+			      'absent' => 'ABSENT', 
+			      'default' => 'DEFAULT', 'absent_value' => 'DEFAULT', 'default_value' => 'DEFAULT',
+			       'zero' => 'ZERO', 'prefix' => 'PREFIX', 'unit' => 'UNIT', 'uom' => 'UNIT');
 
     my $self = {  # library and nagios versions
 		_NaglioLibraryVersion => 0.3,	# this library's version
@@ -453,6 +464,7 @@ sub perf_name {
 #  @INPUT         : ARG1 - variable name (variable as found in dataresults)
 #  @RETURNS       : name for output
 #  @PRIVACY & USE : PUBLIC, but its use should be limited. To be as an object instance function,
+#  @TODO          : NAME should be changed to LABEL and it should take into account regex capture names for it
 sub out_name {
     my ($self,$dname) = @_;
     my $thresholds = $self->{'_thresholds'};
@@ -917,7 +929,7 @@ sub threshold_specok {
 }
 
 #  @DESCRIPTION   : this compares var names from data to names given as plugin options treating them regex
-#  @LAST CHANGED  : 08-26-12 by WL
+#  @LAST CHANGED  : 09-07-13 by WL
 #  @INPUT         : ARG1 - the name to search for
 #  @RETURNS       : Keyname for what first one that matched from _thresholds
 #                   Undef if nothing matched
@@ -937,6 +949,11 @@ sub var_pattern_match {
 	}
 	elsif ($is_regex_match ne 0 && defined($thresholds->{$v}{'PATTERN'})) {
 	    $pattern = $thresholds->{$v}{'PATTERN'};
+	}
+	elsif ($is_regex_match ne 0 && defined($thresholds->{$v}{'REGEX'}) && $thresholds->{$v}{'REGEX'}=='YES' &&
+	    defined($thresholds->{$v}{'METRIC'})) {
+	    $thresholds->{$v}{'PATTERN'} = $thresholds->{$v}{'METRIC'};
+	    $pattern = $thresholds->{$v}{'METRIC'};
 	}
 	if ($pattern ne '' && $name =~ /$pattern/) {
 	    $self->verb("Data name '".$name."' matches pattern '".$pattern."'");
@@ -963,7 +980,7 @@ sub add_data {
 
     # determine what plugin options-specified var & threshold this data corresponds to
     if (!defined($anam)) {
-	if ($self->{'enable_regex_match'} == 0) {
+	if ($self->{'enable_regex_match'} == 0) { # if regex is turned off for entire plugin
 	    $anam = $dnam;
 	}
 	else {
@@ -1008,20 +1025,22 @@ sub vardata {
 
 #  @DESCRIPTION   : This function parses "WARN:threshold,CRIT:threshold,ABSENT:OK|WARNING|CRITICAL|UNKNOWN" combined threshold keyword string
 #		    Parsing of actual threshold i.e. what is after WARN, CRIT is done by parse_threshold_level() function
-#  @LAST CHANGED  : 08-20-13 by WL
+#  @LAST CHANGED  : 10-31-13 by WL
 #  @INPUT         : ARG1 - String containing threshold line like "WARN:threshold,CRIT:threshold,ABSENT:OK|WARNING|CRITICAL|UNKNOWN"
 #		    Acceptable comma-separated parts threshold specifiers are:
 #		       WARN:<threshold> - warning threshold (maybe repeated)
 #		       CRIT:<treshold>  - critical threshold (maybe repeated)
-#		       ABSENT:OK|WARNING|CRITICAL|UNKNOWN - nagios exit code if data for this variable is not found
+#		       DEFAULT:<value>  - value to set if data for this variable is not found
+#		       ABSENT:OK|WARNING|CRITICAL|UNKNOWN - nagios exit code if data is not found. alternative to DEFAULT
 #		       ZERO:OK|WARNING|CRITICAL|UNKNOWN - nagios exit code if data is 0
 #		       DISPLAY:YES|NO - output data in plugin status line
 #		       PERF:YES|NO    - output data as plugin performance data
 #		       SAVED:YES|NO   - put results in saved data (this really should not be set manually)
 #		       METRIC:<string> - metric this keywords applies to if not specified
-#		       PATTERN:<regex> - enables regex match allowing more than one real data name to match this threshold
-#		       NAME:<string> - overrides output status and perf name for this variable
-#		       UOM:<string>  - unit of measurement symbol to add to perf
+#		       REGEX:YES|NO    - enables regex for METRIC allowing more than one real data name to match threshold
+#		       PATTERN:<regex> - same as metric but with regex automatocally enabled (original, to be depreciated)
+#		       LABEL/NAME:<string> - overrides output status and perf name for this variable
+#		       UOM/UNIT:<string>  - unit of measurement symbol to add to perf
 #  @RETURNS       : Retur_ns reference to a hash array, a library's structure for holding processed THRESHOLD keywords spec
 #		    This THRESHOLD is structure with keywords as hashes and arrays of WARN and CRIT levels
 #  @PRIVACY & USE : PUBLIC, but its use is discouraged. Maybe used directly or as an object instance function.
@@ -1161,6 +1180,20 @@ sub parse_thresholds {
 			  $thres->{'PATTERN'} = $val;
 			  $self->{'enable_regex_match'} = 2 if defined($self) && $self->{'enable_regex_match'} eq 0;
 		    }
+		    elsif ($threshold_keywords->{$t2} eq 'REGEX') {
+			  if ($val eq 'YES' || $val eq 'NO') {
+			      $thres->{'REGEX'} = $val;
+			  }
+			  else {
+			      print "Invalid value $val after REGEX. Specify this as YES or NO.\n";
+			      if (defined($self) && $self->{'_is_object'}==1) { $self->usage(); }
+			      exit $ERRORS{"UNKNOWN"};
+			  }
+			  $self->{'enable_regex_match'} = 2 if defined($self) && $self->{'enable_regex_match'} eq 0;
+		    }
+		    elsif ($threshold_keywords->{$t2} eq 'DEFAULT') {
+			  $thres->{'DEFAULT'} = $val;
+		    }
 		    elsif ($threshold_keywords->{$t2} eq 'NAME') {
 			  $thres->{'NAME'} = $val;
 		    }
@@ -1168,7 +1201,12 @@ sub parse_thresholds {
 			  $thres->{'METRIC'} = $val;
 		    }
 		    elsif ($threshold_keywords->{$t2} eq 'UNIT') {
+			  # TODO: check for valid UOM later
 			  $thres->{'UOM'} = $val;
+		    }
+		    elsif ($threshold_keywords->{$t2} eq 'PREFIX') {
+			  # TODO: check for valid PREFIX later
+			  $thres->{'PREFIX'} = $val;
 		    }
 		    else {
 			  print "Can not parse. Unknown threshold specification: $t\n";
@@ -1340,6 +1378,7 @@ sub additional_options_help {
        Threshold can also be specified as a range in two forms:
          num1:num2  - warn if data is outside range i.e. if data<num1 or data>num2
          \@num1:num2 - warn if data is in range i.e. data>=num1 && data<=num2
+     DEFAULT:<value> - value to set if data is absent, alternative to this is ABSENT
      ABSENT:OK|WARNING|CRITICAL|UNKNOWN - Nagios alert (or lock of thereof) if data is absent
      ZERO:OK|WARNING|CRITICAL|UNKNOWN   - Nagios alert (or lock of thereof) if result is 0
      DISPLAY:YES|NO - Specifies if data should be included in nagios status line output
@@ -1698,7 +1737,11 @@ sub main_checkvars {
     for (my $i=0;$i<scalar(@{$allVars});$i++) {
 	$avar = $allVars->[$i];
 	if (!defined($datavars->{$avar}) || scalar(@{$datavars->{$avar}})==0) {
-	    if (defined($thresholds->{$avar}{'ABSENT'})) {
+	    if (defined($thresholds->{$avar}{'DEFAULT'})) {
+		$self->verb("Setting $avar to DEFAULT specified value ".$thresholds->{$avar}{'DEFAULT'});
+		$self->add_data($avar, $thresholds->{$avar}{'DEFAULT'});
+	    }
+	    elsif (defined($thresholds->{$avar}{'ABSENT'})) {
 		$self->set_statuscode($thresholds->{$avar}{'ABSENT'});
 	    }
 	    else {
@@ -1707,7 +1750,8 @@ sub main_checkvars {
 	    $aname = $self->out_name($avar);
 	    $self->addto_statusinfo_output($avar, "$aname data is missing");
 	}
-	else {
+	# the reason its same it is not else is default value may have been set
+	if (defined($datavars->{$avar}) && scalar(@{$datavars->{$avar}})>0) {
 	    foreach $dvar (@{$datavars->{$avar}}) {
 		$aname = $self->out_name($dvar);
 		if (defined($dataresults->{$dvar}[0])) {
