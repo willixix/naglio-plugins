@@ -138,21 +138,21 @@ sub _init_self {
     my @ar_varsL=   ();        # used during options processing
     my @prev_time=  ();     	# timestamps if more then one set of previois performance data
     my %other_args = ();
-    my %threshold_keywords = ('metric' => 'METRIC', 'name' => 'NAME',     # acceptable threshold keywords
-			      'pattern' => 'PATTERN', 'regex' => 'REGEX', 'order' => 'ORDER',
-			      'label' => 'LABEL',  'perf_label' => 'PERF_LABEL', 
-			      'perf' => 'PERF', 'display' => 'DISPLAY',
-                              'warn' =>'WARN', 'warning' => 'WARN', 'w' => 'WARN', 'awarn' => 'AWARN',
-			      'crit' =>'CRIT', 'critical' => 'CRIT', 'c' => 'CRIT', 'acrit' => 'ACRIT',
-			      'ok' => 'OK', 'aok' => 'AOK',
-			      'wexpr' => 'WARNING_EXPRESSION', 
-			      'warn_expr' => 'WARNING_EXPRESSION', 'warning_expression' => 'WARNING_EXPRESSION', 
-			      'cexpr' => 'CRITIICAL_EXPRESSION', 
-			      'crit_expr' => 'CRITICAL_EXPRESSION', 'critical_expression' => 'CRITICAL_EXPRESSION',
-			      'expression' => 'EXPRESSION', 'expr' => 'EXPRESSION',
-			      'absent' => 'ABSENT', 
-			      'default' => 'DEFAULT', 'absent_value' => 'DEFAULT', 'default_value' => 'DEFAULT',
-			       'zero' => 'ZERO', 'prefix' => 'PREFIX', 'unit' => 'UNIT', 'uom' => 'UNIT');
+    my %threshold_keywords = ('METRIC' => 'METRIC', 'NAME' => 'NAME',     # acceptable threshold keywords
+			      'PATTERN' => 'PATTERN', 'REGEX' => 'REGEX', 'ORDER' => 'ORDER',
+			      'LABEL' => 'LABEL',  'PERF_LABEL' => 'PERF_LABEL', 
+			      'PERF' => 'PERF', 'DISPLAY' => 'DISPLAY',
+                              'WARN' =>'WARN', 'WARNING' => 'WARN', 'W' => 'WARN', 'AWARN' => 'AWARN',
+			      'CRIT' =>'CRIT', 'CRITICAL' => 'CRIT', 'C' => 'CRIT', 'ACRIT' => 'ACRIT',
+			      'OK' => 'OK', 'AOK' => 'AOK',
+			      'WEXPR' => 'WARNING_EXPRESSION', 
+			      'WARN_EXPR' => 'WARNING_EXPRESSION', 'WARNING_EXPRESSION' => 'WARNING_EXPRESSION', 
+			      'CEXPR' => 'CRITICAL_EXPRESSION', 
+			      'CRIT_EXPR' => 'CRITICAL_EXPRESSION', 'CRITICAL_EXPRESSION' => 'CRITICAL_EXPRESSION',
+			      'EXPRESSION' => 'EXPRESSION', 'EXPR' => 'EXPRESSION',
+			      'ABSENT' => 'ABSENT', 
+			      'DEFAULT' => 'DEFAULT', 'ABSENT_VALUE' => 'DEFAULT', 'DEFAULT_VALUE' => 'DEFAULT',
+			      'ZERO' => 'ZERO', 'PREFIX' => 'PREFIX', 'UNIT' => 'UNIT', 'UOM' => 'UNIT');
 
     my $self = {  # library and nagios versions
 		_NaglioLibraryVersion => 0.3,	# this library's version
@@ -1062,10 +1062,10 @@ sub parse_thresholds {
       
    # check if threshold line begins with any known threshold keyword or not
    if (defined($t)) {
-        THK_LOOP: foreach $k (keys %{$threshold_keywords}) {
-	    if ($t =~ /^$k/i) {
-	        $is_long_syntax = 1;
-	        last THK_LOOP;
+        foreach $k (keys %{$threshold_keywords}) {
+	    if ($is_long_syntax==0 && $t =~ /^$k\:/i || $t =~ /^$k\=/i) {
+	        $is_long_syntax=1 if $t =~ /^$k\:/i;
+		$is_long_syntax=2 if $t =~ /^$k\=/i;
 	    }
         }
    }
@@ -1093,9 +1093,16 @@ sub parse_thresholds {
    # new format with prefix specifying if its WARN or CRIT and support of ABSENT
    else {
 	foreach $t (@tin) {
-	     if ($t =~ /^(.*)\:(.*)/) {
+	     $t2=undef;
+	     if ($is_long_syntax==1 && $t =~ /^(.*)\:(.*)/) { 
 		    $t2 = uc $1;
 		    $val = $2;
+	     }
+             if ($is_long_syntax==2 && $t =~ /^(.*)\=(.*)/) {
+                    $t2 = uc $1;
+                    $val = $2;
+             }
+	     if (defined($t2)) {
 		    if (!exists($threshold_keywords->{$t2})) {
 			print "Can not parse, unknown threshold keyword $t2 in: $t\n";
 			print "Threshold should have form: WARN:threshold,CRIT:threshold,ABSENT:OK|WARNING|CRITICAL|UNKNOWN,ZERO:OK|WARNING|CRITICAL|UNKNOWN\n";
@@ -1741,14 +1748,16 @@ sub main_checkvars {
 		$self->verb("Setting $avar to DEFAULT specified value ".$thresholds->{$avar}{'DEFAULT'});
 		$self->add_data($avar, $thresholds->{$avar}{'DEFAULT'});
 	    }
-	    elsif (defined($thresholds->{$avar}{'ABSENT'})) {
-		$self->set_statuscode($thresholds->{$avar}{'ABSENT'});
-	    }
 	    else {
-		$self->set_statuscode("CRITICAL");
+		if (defined($thresholds->{$avar}{'ABSENT'})) {
+			$self->set_statuscode($thresholds->{$avar}{'ABSENT'});
+	    	}
+	    	else {
+			$self->set_statuscode("CRITICAL");
+	    	}
+	    	$aname = $self->out_name($avar);
+	    	$self->addto_statusinfo_output($avar, "$aname data is missing");
 	    }
-	    $aname = $self->out_name($avar);
-	    $self->addto_statusinfo_output($avar, "$aname data is missing");
 	}
 	# the reason its same it is not else is default value may have been set
 	if (defined($datavars->{$avar}) && scalar(@{$datavars->{$avar}})>0) {
